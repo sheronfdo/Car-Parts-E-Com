@@ -1,6 +1,12 @@
 const express = require("express");
 const {
+    getAdmins,
+    addAdmin,
+    deleteAdmin,
+    getCouriers,
     addCourier,
+    updateCourier,
+    deleteCourier,
     getPendingSellers,
     approveSeller,
     deleteSeller,
@@ -15,11 +21,23 @@ const router = express.Router();
 router.use(auth);
 router.use(checkRole("admin"));
 
-// Add a courier
-router.post("/add-courier", addCourier);
+// Admin Management
+router.get("/admins", getAdmins);
+router.post("/admins", addAdmin);
+router.delete("/admins/:id", deleteAdmin);
+
+// Courier Management
+router.get("/couriers", getCouriers);
+router.post("/couriers", addCourier);
+router.put("/couriers/:id", updateCourier);
+router.delete("/couriers/:id", deleteCourier);
+
+// Seller Management
 router.get("/sellers/pending", getPendingSellers);
 router.put("/sellers/:id", approveSeller);
 router.delete("/sellers/:id", deleteSeller);
+
+// Buyer Management
 router.delete("/buyers/:id", deleteBuyer);
 
 module.exports = router;
