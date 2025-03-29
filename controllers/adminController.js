@@ -68,7 +68,9 @@ exports.deleteSeller = async (req, res) => {
         if (!seller || seller.role !== "seller") {
             return res.status(404).json({ success: false, message: "Seller not found" });
         }
-        await User.deleteOne({ _id: id });
+        seller.status = "deleted";
+        seller.updatedAt = Date.now();
+        await seller.save();
         res.json({ success: true, message: "Seller deleted" });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -82,7 +84,9 @@ exports.deleteBuyer = async (req, res) => {
         if (!buyer || buyer.role !== "buyer") {
             return res.status(404).json({ success: false, message: "Buyer not found" });
         }
-        await User.deleteOne({ _id: id });
+        buyer.status = "deleted";
+        buyer.updatedAt = Date.now();
+        await buyer.save();
         res.json({ success: true, message: "Buyer deleted" });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });

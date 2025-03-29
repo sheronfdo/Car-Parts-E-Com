@@ -59,6 +59,9 @@ exports.login = async (req, res) => {
         }
 
         // If sellers need approval, uncomment the next block:
+        if (user.status === "deleted") {
+            return res.status(403).json({success: false, message: "Account has suspended"});
+        }
 
         if (user.role === "seller" && user.status !== "active") {
             return res.status(403).json({success: false, message: "Account pending approval"});
