@@ -25,7 +25,6 @@ exports.register = async (req, res) => {
             name,
             phone,
             storeName: role === "seller" ? storeName : undefined,
-            // If sellers need approval, uncomment the next line:
             status: role === "seller" ? "pending" : "active"
         });
         await user.save();

@@ -32,6 +32,51 @@ mongoose.connect(process.env.MONGO_URI, {
             await adminUser.save();
             console.log("Default admin user created with email: admin@example.com, password: adminpassword");
         }
+        // // Check if an admin user exists; if not, create one
+        // const courierExists = await User.findOne({role: "courier"});
+        // if (!courierExists) {
+        //     const bcrypt = require("bcryptjs");
+        //     const hashedPassword = await bcrypt.hash("courierpassword", 10); // Default password
+        //     const courierUser = new User({
+        //         role: "courier",
+        //         email: "courier@example.com",
+        //         password: hashedPassword,
+        //         name: "courier User",
+        //         phone: "+1234567890"
+        //     });
+        //     await courierUser.save();
+        //     console.log("Default courier user created with email: courier@example.com, password: courierpassword");
+        // }
+        // // Check if an admin user exists; if not, create one
+        // const sellerExists = await User.findOne({role: "seller"});
+        // if (!sellerExists) {
+        //     const bcrypt = require("bcryptjs");
+        //     const hashedPassword = await bcrypt.hash("sellerpassword", 10); // Default password
+        //     const sellerUser = new User({
+        //         role: "seller",
+        //         email: "seller@example.com",
+        //         password: hashedPassword,
+        //         name: "seller User",
+        //         phone: "+1234567890"
+        //     });
+        //     await sellerUser.save();
+        //     console.log("Default seller user created with email: seller@example.com, password: sellerpassword");
+        // }
+        // // Check if an admin user exists; if not, create one
+        // const buyerExists = await User.findOne({role: "buyer"});
+        // if (!buyerExists) {
+        //     const bcrypt = require("bcryptjs");
+        //     const hashedPassword = await bcrypt.hash("buyerpassword", 10); // Default password
+        //     const buyerUser = new User({
+        //         role: "buyer",
+        //         email: "buyer@example.com",
+        //         password: hashedPassword,
+        //         name: "buyer User",
+        //         phone: "+1234567890"
+        //     });
+        //     await buyerUser.save();
+        //     console.log("Default buyer user created with email: buyer@example.com, password: buyerpassword");
+        // }
     })
     .catch(err => {
         console.error("MongoDB connection error:", err);
