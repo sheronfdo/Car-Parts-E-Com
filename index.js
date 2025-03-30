@@ -4,7 +4,7 @@ require("dotenv").config();
 const User = require("./models/User");
 const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
-const categoryRoutes = require("./routes/category");
+const sellerRoutes = require("./routes/seller");
 
 
 const app = express();
@@ -86,9 +86,9 @@ mongoose.connect(process.env.MONGO_URI, {
     });
 
 // Routes
-app.use("/api/auth", authRoutes); // Public authentication routes
-app.use("/api/admin", adminRoutes); // Admin-only routes
-app.use("/api/admin/categories", categoryRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/seller", sellerRoutes);
 
 
 
