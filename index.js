@@ -4,6 +4,8 @@ require("dotenv").config();
 const User = require("./models/User");
 const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
+const categoryRoutes = require("./routes/category");
+
 
 const app = express();
 
@@ -86,7 +88,73 @@ mongoose.connect(process.env.MONGO_URI, {
 // Routes
 app.use("/api/auth", authRoutes); // Public authentication routes
 app.use("/api/admin", adminRoutes); // Admin-only routes
+app.use("/api/admin/categories", categoryRoutes);
+
+
+
 
 // Start Server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
+
+
+
+//
+// const Category = require("./models/Category");
+//
+// const seedCategories = async () => {
+//     try {
+//         await Category.deleteMany({});
+//
+//         const categories = [
+//             { name: "Engine & Transmission", subcategories: [
+//                     "Engine Components", "Transmission & Drivetrain", "Fuel System", "Cooling System"
+//                 ]},
+//             { name: "Braking System", subcategories: [
+//                     "Brake Pads & Discs", "Brake Calipers", "ABS Components", "Brake Lines & Hoses"
+//                 ]},
+//             { name: "Suspension & Steering", subcategories: [
+//                     "Shock Absorbers & Struts", "Control Arms", "Power Steering Pumps", "Tie Rods & Ball Joints"
+//                 ]},
+//             { name: "Electrical & Electronics", subcategories: [
+//                     "Batteries", "Alternators", "Starters", "Sensors", "Ignition System"
+//                 ]},
+//             { name: "Body & Exterior", subcategories: [
+//                     "Doors, Bumpers, Fenders", "Headlights, Taillights, Fog Lights", "Mirrors & Windshield Components"
+//                 ]},
+//             { name: "Interior & Accessories", subcategories: [
+//                     "Seats & Seat Covers", "Dashboards & Instrument Clusters", "Car Audio & Entertainment Systems"
+//                 ]},
+//             { name: "Exhaust & Emission", subcategories: [
+//                     "Mufflers", "Catalytic Converters", "Exhaust Pipes & Manifolds"
+//                 ]},
+//             { name: "Wheels & Tires", subcategories: [
+//                     "Rims & Alloy Wheels", "Tires", "Wheel Bearings & Hubs"
+//                 ]},
+//             { name: "Fluids & Maintenance", subcategories: [
+//                     "Engine Oil", "Coolants", "Transmission Fluids", "Brake Fluids"
+//                 ]},
+//             { name: "Detailing", subcategories: [
+//                     "Car wash items an all"
+//                 ]}
+//         ];
+//
+//         for (const cat of categories) {
+//             const mainCat = new Category({ name: cat.name, status: "active" });
+//             await mainCat.save();
+//
+//             for (const subCatName of cat.subcategories) {
+//                 const subCat = new Category({ name: subCatName, parentCategory: mainCat._id, status: "active" });
+//                 await subCat.save();
+//             }
+//         }
+//
+//         console.log("Categories and subcategories seeded successfully");
+//     } catch (err) {
+//         console.error("Error seeding categories:", err);
+//     }
+// };
+//
+// mongoose.connection.once("open", () => seedCategories());

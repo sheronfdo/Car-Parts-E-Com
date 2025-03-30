@@ -10,7 +10,9 @@ const {
     getPendingSellers,
     approveSeller,
     deleteSeller,
-    deleteBuyer
+    deleteBuyer,
+    getAllSellers,
+    getAllBuyers
 } = require("../controllers/adminController");
 const auth = require("../middleware/auth");
 const checkRole = require("../middleware/checkRole");
@@ -33,11 +35,13 @@ router.put("/couriers/:id", updateCourier);
 router.delete("/couriers/:id", deleteCourier);
 
 // Seller Management
+router.get("/sellers", getAllSellers);
 router.get("/sellers/pending", getPendingSellers);
 router.put("/sellers/:id", approveSeller);
 router.delete("/sellers/:id", deleteSeller);
 
 // Buyer Management
+router.get("/buyers", getAllBuyers);
 router.delete("/buyers/:id", deleteBuyer);
 
 module.exports = router;

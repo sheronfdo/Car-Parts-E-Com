@@ -145,6 +145,15 @@ exports.deleteCourier = async (req, res) => {
     }
 };
 
+exports.getAllSellers = async (req, res) => {
+    try {
+        const sellers = await User.find({ role: "seller" });
+        res.json({ success: true, data: sellers });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
 exports.getPendingSellers = async (req, res) => {
     try {
         const pendingSellers = await User.find({ role: "seller", status: "pending" });
@@ -184,6 +193,15 @@ exports.deleteSeller = async (req, res) => {
         seller.updatedAt = Date.now();
         await seller.save();
         res.json({ success: true, message: "Seller deleted" });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+exports.getAllBuyers = async (req, res) => {
+    try {
+        const buyers = await User.find({ role: "buyer" });
+        res.json({ success: true, data: buyers });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
