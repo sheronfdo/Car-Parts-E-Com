@@ -5,6 +5,8 @@ const User = require("./models/User");
 const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
 const sellerRoutes = require("./routes/seller");
+const buyerRoutes = require("./routes/buyer");
+const Product = require("./models/Product");
 
 
 const app = express();
@@ -89,6 +91,7 @@ mongoose.connect(process.env.MONGO_URI, {
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/seller", sellerRoutes);
+app.use("/api/buyer", buyerRoutes);
 
 
 
