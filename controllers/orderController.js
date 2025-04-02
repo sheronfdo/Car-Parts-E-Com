@@ -77,11 +77,14 @@ exports.createOrder = async (req, res) => {
             amount: total.toFixed(2),
             first_name: req.user.firstName || "Buyer",
             last_name: req.user.lastName || "",
-            email: req.user.email,
+            email: req.user.email || "sample@mail.com",
             phone: req.user.phone || "1234567890",
             address: "No Address Provided",
+            delivery_address: "No Address Provided",
             city: "Colombo",
+            delivery_city: "Colombo",
             country: "Sri Lanka",
+            delivery_country: "Sri Lanka",
             hash: generatePayHereHash(PAYHERE_MERCHANT_ID, order._id.toString(), total, "LKR", PAYHERE_MERCHANT_SECRET),
         };
 
