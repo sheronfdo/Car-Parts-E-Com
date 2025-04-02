@@ -66,6 +66,7 @@ exports.createOrder = async (req, res) => {
 
         // Step 4: Prepare PayHere payment data
         const payhereData = {
+            sandbox:true,
             merchant_id: PAYHERE_MERCHANT_ID,
             return_url: "http://localhost:3000/success",
             cancel_url: "http://localhost:3000/cancel",
