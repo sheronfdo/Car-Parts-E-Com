@@ -10,6 +10,11 @@ const {
     getCart,
     clearCart
 } = require("../controllers/cartController");
+const {
+    createOrder,
+    notifyOrder,
+    getOrders,
+} = require("../controllers/orderController");
 const router = express.Router();
 const auth = require("../middleware/auth");
 const checkRole = require("../middleware/checkRole");
@@ -26,5 +31,9 @@ router.post("/cart/add", addToCart);
 router.delete("/cart/remove/:productId", removeFromCart);
 router.get("/cart", getCart);
 router.delete("/cart/clear", clearCart);
+
+router.post("/order", createOrder);
+router.post("/order/notify", notifyOrder);
+router.get("/orders", getOrders);
 
 module.exports = router;

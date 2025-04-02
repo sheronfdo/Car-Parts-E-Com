@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 require("dotenv").config();
+const cors = require("cors");
 const User = require("./models/User");
 const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
@@ -10,6 +11,12 @@ const Product = require("./models/Product");
 
 
 const app = express();
+
+app.use(cors({
+    origin: "*", // Allow all origins (for testing); specify your frontend URL in production (e.g., "http://localhost:3000")
+    methods: ["GET", "POST", "PUT", "DELETE"], // Allowed HTTP methods
+    allowedHeaders: ["Content-Type", "Authorization"], // Allowed headers
+}));
 
 app.use(express.json());
 
