@@ -1,5 +1,12 @@
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
+
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, "../uploads");
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 // Multer setup for file uploads
 const storage = multer.diskStorage({
@@ -44,5 +51,5 @@ exports.uploadAssets = (req, res) => {
     }
 };
 
-// Export Multer middleware separately if needed elsewhere
+// Export Multer middleware for multiple files
 exports.uploadMiddleware = upload.array("media", 10);
