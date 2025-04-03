@@ -14,6 +14,9 @@ const {
     createOrder,
     notifyOrder,
     getOrders,
+    cancelOrder,
+    trackOrder,
+    saveAddress
 } = require("../controllers/orderController");
 const router = express.Router();
 const auth = require("../middleware/auth");
@@ -35,5 +38,8 @@ router.delete("/cart/clear", clearCart);
 router.post("/order", createOrder);
 router.post("/order/notify", notifyOrder);
 router.get("/orders", getOrders);
+router.post("/order/cancel/:id", cancelOrder);
+router.get("/order/track/:id", trackOrder);
+router.post("/address", saveAddress);
 
 module.exports = router;

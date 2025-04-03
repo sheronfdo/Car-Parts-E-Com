@@ -24,6 +24,13 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: "active" // Can be "pending" for sellers if approval is needed
     },
+    addresses: [{
+        street: String,
+        city: String,
+        country: String,
+        postalCode: String,
+        isDefault: { type: Boolean, default: false }
+    }],
     createdAt: {
         type: Date,
         default: Date.now

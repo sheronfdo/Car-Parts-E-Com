@@ -15,6 +15,16 @@ const orderSchema = new mongoose.Schema({
         enum: ["Pending", "Confirmed", "Shipped", "Delivered", "Cancelled"],
         default: "Pending",
     },
+    shippingAddress: {
+        street: String,
+        city: String,
+        country: String,
+        postalCode: String
+    },
+    statusHistory: [{
+        status: String,
+        updatedAt: Date
+    }],
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
 });

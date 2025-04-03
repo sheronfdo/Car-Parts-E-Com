@@ -1,6 +1,7 @@
 const Cart = require("../models/Cart");
 const Product = require("../models/Product");
 const Order = require("../models/Order");
+const User = require("../models/User");
 const crypto = require("crypto");
 require("dotenv").config();
 
@@ -17,11 +18,30 @@ const generatePayHereHash = (merchantId, orderId, amount, currency, merchantSecr
 // Create Order
 exports.createOrder = async (req, res) => {
     const buyerId = req.user.id;
-    const { items: requestedItems } = req.body;
+    const { items: requestedItems, shippingAddress } = req.body;
 
     try {
         let orderItems = [];
         let cart;
+
+        const user = await User.findById(buyerId);
+
+        // Handle user addresses
+        if (user.addresses.length === 0) {
+            user.addresses.push({ ...shippingAddress, isDefault: true });
+        } else {
+            const exists = user.addresses.some(addr =>
+                addr.street === shippingAddress.street &&
+                addr.city === shippingAddress.city &&
+                addr.country === shippingAddress.country &&
+                addr.postalCode === shippingAddress.postalCode
+            );
+            if (!exists) {
+                user.addresses.push(shippingAddress);
+            }
+        }
+        await user.save();
+        const defaultAddress = user.addresses.find(addr => addr.isDefault) || {};
 
         // Step 1: Prepare order items
         if (requestedItems && Array.isArray(requestedItems) && requestedItems.length > 0) {
@@ -61,6 +81,12 @@ exports.createOrder = async (req, res) => {
             items: orderItems,
             total,
             status: "Pending",
+            shippingAddress: {
+                street: shippingAddress.street,
+                city: shippingAddress.city,
+                country: shippingAddress.country,
+                postalCode: shippingAddress.postalCode
+            }
         });
         await order.save();
 
@@ -79,12 +105,12 @@ exports.createOrder = async (req, res) => {
             last_name: req.user.lastName || "",
             email: req.user.email || "sample@mail.com",
             phone: req.user.phone || "1234567890",
-            address: "No Address Provided",
-            delivery_address: "No Address Provided",
-            city: "Colombo",
-            delivery_city: "Colombo",
-            country: "Sri Lanka",
-            delivery_country: "Sri Lanka",
+            address: defaultAddress.street || "No Address Provided",
+            city: defaultAddress.city || "Colombo",
+            country: defaultAddress.country || "Sri Lanka",
+            delivery_address: shippingAddress.street,
+            delivery_city: shippingAddress.city,
+            delivery_country: shippingAddress.country,
             hash: generatePayHereHash(PAYHERE_MERCHANT_ID, order._id.toString(), total, "LKR", PAYHERE_MERCHANT_SECRET),
         };
 
@@ -103,14 +129,29 @@ exports.notifyOrder = async (req, res) => {
     const { merchant_id, order_id, status_code, md5sig, amount, currency } = req.body;
 
     try {
+
+        const sanitizedAmount = typeof amount === 'string'
+            ? amount.replace(/,/g, '')
+            : amount;
+        const numericAmount = parseFloat(sanitizedAmount);
+
+        if (isNaN(numericAmount)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid amount format"
+            });
+        }
+
         // Verify hash
         const localHash = generatePayHereHash(
             merchant_id,
             order_id,
-            parseFloat(amount).toFixed(2),
+            numericAmount, // Pass as number
             currency,
             PAYHERE_MERCHANT_SECRET
         );
+
+
         if (md5sig !== localHash) {
             return res.status(400).json({ success: false, message: "Invalid signature" });
         }
@@ -161,6 +202,50 @@ exports.getOrders = async (req, res) => {
             "title price condition brand images"
         );
         res.status(200).json({ success: true, data: orders });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+exports.cancelOrder = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const order = await Order.findOne({ _id: id, buyerId: req.user.id });
+        if (!order || order.status !== "Pending") {
+            return res.status(400).json({ success: false, message: "Order cannot be cancelled" });
+        }
+
+        order.status = "Cancelled";
+        order.statusHistory.push({ status: "Cancelled", updatedAt: new Date() });
+
+        for (const item of order.items) {
+            await Product.updateOne({ _id: item.productId }, { $inc: { stock: item.quantity } });
+        }
+
+        await order.save();
+        res.json({ success: true, message: "Order cancelled successfully" });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+exports.trackOrder = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const order = await Order.findById(id).select("status statusHistory");
+        if (!order) throw new Error("Order not found");
+        res.json({ success: true, data: order });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+exports.saveAddress = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        user.shippingAddress = req.body.address;
+        await user.save();
+        res.json({ success: true, message: "Address saved successfully" });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
