@@ -17,6 +17,7 @@ const userSchema = new mongoose.Schema({
     },
     name: String,
     phone: String,
+    profileImage: { type: String },
     storeName: String, // For sellers
     region: String, // For couriers
     availability: String, // For couriers: "active" or "inactive"
