@@ -2,23 +2,31 @@ const express = require("express");
 const mongoose = require("mongoose");
 require("dotenv").config();
 const cors = require("cors");
+const path = require("path");
 const User = require("./models/User");
 const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
 const sellerRoutes = require("./routes/seller");
 const buyerRoutes = require("./routes/buyer");
-const Product = require("./models/Product");
+const assetRoutes = require("./routes/asset");
 
 
 const app = express();
 
 app.use(cors({
-    origin: ["https://car-parts-e-com-checkout.vercel.app", "http://localhost:5500", "*", "http://localhost"], // Allow all origins (for testing); specify your frontend URL in production (e.g., "http://localhost:3000")
+    origin:  "*" ,// ["https://car-parts-e-com-checkout.vercel.app", "http://localhost:5500", "*", "http://localhost"], // Allow all origins (for testing); specify your frontend URL in production (e.g., "http://localhost:3000")
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Allowed HTTP methods
     allowedHeaders: ["Content-Type", "Authorization"], // Allowed headers
 }));
 
 app.use(express.json());
+
+app.use("/uploads", express.static(path.join(__dirname, "uploads"), {
+    // Optional: Ensure correct MIME types and fallback
+    setHeaders: (res, filePath) => {
+        res.setHeader("Content-Type", require("mime-types").lookup(filePath) || "application/octet-stream");
+    }
+}));
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI, {
@@ -99,6 +107,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/seller", sellerRoutes);
 app.use("/api/buyer", buyerRoutes);
+app.use("/api/media", assetRoutes);
 
 
 
