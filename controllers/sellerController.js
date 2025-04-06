@@ -103,6 +103,10 @@ exports.updateOrderStatus = async (req, res) => {
         const updatedItems = order.items.map(item => {
             if (item.productId && sellerProductIds.includes(item.productId.toString())) {
                 item.sellerStatus = status;
+                order.statusHistory.push({
+                    status: `Seller updated item to ${status}`,
+                    updatedBy: { role: "seller", userId: sellerId }
+                });
                 updated = true;
             }
             return item;
@@ -113,10 +117,69 @@ exports.updateOrderStatus = async (req, res) => {
         }
 
         order.items = updatedItems;
-        order.statusHistory.push({ status: `Seller updated to ${status}`, updatedAt: new Date() });
+        // order.statusHistory.push({ status: `Seller updated to ${status}`, updatedAt: new Date() });
         await order.save();
 
         res.status(200).json({ success: true, message: `Order status updated to ${status}` });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+
+exports.handoverToCourier = async (req, res) => {
+    const sellerId = req.user.id;
+    const { id } = req.params;
+    const { trackingNumber } = req.body;
+
+    try {
+        const order = await Order.findById(id);
+        if (!order) {
+            return res.status(404).json({ success: false, message: "Order not found" });
+        }
+
+        const products = await Product.find({ sellerId });
+        const sellerProductIds = products.map(p => p._id.toString());
+        const sellerItems = order.items.filter(item =>
+            item.productId && sellerProductIds.includes(item.productId.toString())
+        );
+
+        if (sellerItems.length === 0) {
+            return res.status(404).json({ success: false, message: "No items in this order belong to you" });
+        }
+
+        order.items = order.items.map(item => {
+            if (sellerProductIds.includes(item.productId.toString())) {
+                item.sellerStatus = "Shipped";
+                order.statusHistory.push({
+                    status: `Seller updated item to Shipped`,
+                    updatedBy: { role: "seller", userId: sellerId }
+                });
+            }
+            return item;
+        });
+
+        order.courierDetails = {
+            courierId: null,
+            trackingNumber: trackingNumber || `TRK-${Date.now()}`
+        };
+        order.courierStatus = "Pending";
+        // order.statusHistory.push({ status: "Handed over to courier service", updatedAt: new Date() });
+        order.statusHistory.push({
+            status: "Handed over to courier service",
+            updatedBy: { role: "seller", userId: sellerId }
+        });
+        const allShipped = order.items.every(item => item.sellerStatus === "Shipped");
+        if (allShipped) {
+            order.status = "Shipped";
+            order.statusHistory.push({
+                status: "Order status updated to Shipped",
+                updatedBy: { role: "system" }
+            });
+        }
+
+        await order.save();
+        res.status(200).json({ success: true, message: "Order handed over to courier service" });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

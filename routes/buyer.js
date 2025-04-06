@@ -26,6 +26,7 @@ router.get("/products", getAllProducts);
 router.get("/products/search", searchProducts);
 router.get("/products/:id", getProductById);
 
+router.post("/order/notify", notifyOrder);
 
 // Protected cart routes (buyer only)
 router.use(auth);
@@ -36,7 +37,6 @@ router.get("/cart", getCart);
 router.delete("/cart/clear", clearCart);
 
 router.post("/order", createOrder);
-router.post("/order/notify", notifyOrder);
 router.get("/orders", getOrders);
 router.post("/order/cancel/:id", cancelOrder);
 router.get("/order/track/:id", trackOrder);

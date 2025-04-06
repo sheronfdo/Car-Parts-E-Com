@@ -10,6 +10,7 @@ const sellerRoutes = require("./routes/seller");
 const buyerRoutes = require("./routes/buyer");
 const assetRoutes = require("./routes/asset");
 const profileRoutes = require("./routes/profile");
+const courierRoutes = require("./routes/courier");
 
 
 const app = express();
@@ -110,6 +111,7 @@ app.use("/api/seller", sellerRoutes);
 app.use("/api/buyer", buyerRoutes);
 app.use("/api/media", assetRoutes);
 app.use("/api/profile", profileRoutes);
+app.use("/api/courier", courierRoutes);
 
 
 

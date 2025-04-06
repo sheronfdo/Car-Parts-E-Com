@@ -3,7 +3,7 @@ const {
     createProduct, getSellerProducts, updateProduct, deleteProduct
 } = require("../controllers/productController");
 const {
-    getSellerOrders, getSellerOrderById, updateOrderStatus
+    getSellerOrders, getSellerOrderById, updateOrderStatus, handoverToCourier
 } = require("../controllers/sellerController");
 const auth = require("../middleware/auth");
 const checkRole = require("../middleware/checkRole");
@@ -21,4 +21,5 @@ router.delete("/products/:id", deleteProduct);
 router.get("/orders", getSellerOrders);
 router.get("/order/:id", getSellerOrderById);
 router.put("/order/:id/status", updateOrderStatus);
+router.put("/order/:id/handover", handoverToCourier);
 module.exports = router;

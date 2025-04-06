@@ -33,6 +33,7 @@ exports.createOrder = async (req, res) => {
             const exists = user.addresses.some(addr =>
                 addr.street === shippingAddress.street &&
                 addr.city === shippingAddress.city &&
+                addr.district === shippingAddress.district &&
                 addr.country === shippingAddress.country &&
                 addr.postalCode === shippingAddress.postalCode
             );
@@ -84,6 +85,7 @@ exports.createOrder = async (req, res) => {
             shippingAddress: {
                 street: shippingAddress.street,
                 city: shippingAddress.city,
+                district: shippingAddress.district,
                 country: shippingAddress.country,
                 postalCode: shippingAddress.postalCode
             }

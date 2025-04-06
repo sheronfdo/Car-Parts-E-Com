@@ -23,12 +23,36 @@ const orderSchema = new mongoose.Schema({
     shippingAddress: {
         street: String,
         city: String,
+        district: {
+            type: String,
+            enum: [
+                "Ampara", "Anuradhapura", "Badulla", "Batticaloa", "Colombo",
+                "Galle", "Gampaha", "Hambantota", "Jaffna", "Kalutara",
+                "Kandy", "Kegalle", "Kilinochchi", "Kurunegala", "Mannar",
+                "Matale", "Matara", "Monaragala", "Mullaitivu", "Nuwara Eliya",
+                "Polonnaruwa", "Puttalam", "Ratnapura", "Trincomalee", "Vavuniya"
+            ],
+            required: true
+        },
         country: String,
         postalCode: String
     },
+    courierDetails: {
+        courierId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        trackingNumber: String
+    },
+    courierStatus: {
+        type: String,
+        enum: ["Pending", "Picked Up", "In Transit", "Out for Delivery", "Delivered", "Failed Delivery"],
+        default: "Pending"
+    },
     statusHistory: [{
         status: String,
-        updatedAt: Date
+        updatedBy: {
+            role: { type: String, enum: ["seller", "courier", "buyer", "system"], required: true },
+            userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
+        },
+        updatedAt: { type: Date, default: Date.now }
     }],
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },

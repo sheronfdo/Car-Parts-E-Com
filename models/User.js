@@ -19,7 +19,17 @@ const userSchema = new mongoose.Schema({
     phone: String,
     profileImage: { type: String },
     storeName: String, // For sellers
-    region: String, // For couriers
+    region: {
+        type: String,
+        enum: [
+            "Ampara", "Anuradhapura", "Badulla", "Batticaloa", "Colombo",
+            "Galle", "Gampaha", "Hambantota", "Jaffna", "Kalutara",
+            "Kandy", "Kegalle", "Kilinochchi", "Kurunegala", "Mannar",
+            "Matale", "Matara", "Monaragala", "Mullaitivu", "Nuwara Eliya",
+            "Polonnaruwa", "Puttalam", "Ratnapura", "Trincomalee", "Vavuniya"
+        ],
+        required: function() { return this.role === "courier"; } // Required for couriers
+    }, // For couriers
     availability: String, // For couriers: "active" or "inactive"
     status: {
         type: String,
