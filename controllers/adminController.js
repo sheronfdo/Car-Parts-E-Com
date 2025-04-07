@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const Order = require("../models/Order");
+const Product = require("../models/Product");
 const bcrypt = require("bcryptjs");
 
 exports.getAdmins = async (req, res) => {
@@ -293,6 +294,57 @@ exports.getAdminAnalytics = async (req, res) => {
                 topSellers,
                 courierPerformance
             }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+exports.getAllOrders = async (req, res) => {
+    try {
+        const { status, startDate, endDate, district } = req.query;
+
+        // Build query object
+        const query = {};
+        if (status) query.status = status;
+        if (district) query["shippingAddress.district"] = district;
+        if (startDate || endDate) {
+            query.createdAt = {};
+            if (startDate) query.createdAt.$gte = new Date(startDate);
+            if (endDate) query.createdAt.$lte = new Date(endDate);
+        }
+
+        const orders = await Order.find(query)
+            .populate("buyerId", "name email phone")
+            .populate("items.productId", "title price brand condition images")
+            .populate("courierDetails.courierId", "name phone region");
+
+        res.status(200).json({
+            success: true,
+            data: orders
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+exports.getAllProducts = async (req, res) => {
+    try {
+        const { status, category, sellerId } = req.query;
+
+        // Build query object
+        const query = {};
+        if (status) query.status = status;
+        if (category) query.category = category;
+        if (sellerId) query.sellerId = sellerId;
+
+        const products = await Product.find(query)
+            .populate("category", "name")
+            .populate("sellerId", "name email storeName");
+
+        res.status(200).json({
+            success: true,
+            data: products
         });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
