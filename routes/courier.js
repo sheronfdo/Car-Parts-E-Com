@@ -5,7 +5,7 @@ const {
     getCourierOrderById,
     updateCourierStatus,
     reportDeliveryIssue,
-    getCourierDashboard
+    getCourierDashboard, getCourierAnalytics
 } = require("../controllers/courierController");
 const authMiddleware = require("../middleware/auth");
 
@@ -21,5 +21,8 @@ router.get("/order/:id", authMiddleware, courierAuth, getCourierOrderById);
 router.put("/order/:id/status", authMiddleware, courierAuth, updateCourierStatus);
 router.post("/order/:id/report-issue", authMiddleware, courierAuth, reportDeliveryIssue);
 router.get("/dashboard", authMiddleware, courierAuth, getCourierDashboard);
+
+// ... (existing imports and routes)
+router.get("/analytics", authMiddleware, courierAuth, getCourierAnalytics);
 
 module.exports = router;

@@ -12,7 +12,7 @@ const {
     deleteSeller,
     deleteBuyer,
     getAllSellers,
-    getAllBuyers
+    getAllBuyers, getAdminAnalytics
 } = require("../controllers/adminController");
 const auth = require("../middleware/auth");
 const checkRole = require("../middleware/checkRole");
@@ -57,5 +57,7 @@ router.get("/categories", getAllCategories);
 router.get("/categories/:id", getCategoryById);
 router.put("/categories/:id", updateCategory);
 router.delete("/categories/:id", deleteCategory);
+
+router.get("/analytics", getAdminAnalytics);
 
 module.exports = router;

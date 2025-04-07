@@ -184,3 +184,64 @@ exports.handoverToCourier = async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 };
+
+exports.getSellerAnalytics = async (req, res) => {
+    const sellerId = req.user.id;
+    try {
+        // Total orders and revenue for seller's products
+        const orders = await Order.find().populate("items.productId");
+        const sellerOrders = orders.filter(order =>
+            order.items.some(item => item.productId && item.productId.sellerId.toString() === sellerId)
+        );
+        const totalOrders = sellerOrders.length;
+        const totalRevenue = sellerOrders.reduce((sum, order) =>
+                sum + order.items.reduce((itemSum, item) =>
+                        item.productId.sellerId.toString() === sellerId && item.sellerStatus === "Delivered"
+                            ? itemSum + (item.quantity * item.price)
+                            : itemSum,
+                    0),
+            0);
+
+        // Order status breakdown for seller's items
+        const statusBreakdown = sellerOrders.reduce((acc, order) => {
+            order.items.forEach(item => {
+                if (item.productId.sellerId.toString() === sellerId) {
+                    acc[item.sellerStatus] = (acc[item.sellerStatus] || 0) + 1;
+                }
+            });
+            return acc;
+        }, {});
+
+        // Top-selling products
+        const topProducts = await Order.aggregate([
+            { $unwind: "$items" },
+            { $match: { "items.productId": { $in: (await Product.find({ sellerId })).map(p => p._id) }, "items.sellerStatus": "Delivered" } },
+            { $group: { _id: "$items.productId", totalSold: { $sum: "$items.quantity" }, revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } } } },
+            { $sort: { totalSold: -1 } },
+            { $limit: 5 },
+            { $lookup: { from: "products", localField: "_id", foreignField: "_id", as: "product" } },
+            { $unwind: "$product" },
+            { $project: { title: "$product.title", totalSold: 1, revenue: 1 } }
+        ]);
+
+        // Stock levels
+        const lowStockProducts = await Product.find({
+            sellerId,
+            stock: { $lt: 10 }, // Threshold for low stock
+            status: "active"
+        }).select("title stock");
+
+        res.status(200).json({
+            success: true,
+            data: {
+                totalOrders,
+                totalRevenue,
+                statusBreakdown,
+                topProducts,
+                lowStockProducts
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};

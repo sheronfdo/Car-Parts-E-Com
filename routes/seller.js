@@ -3,7 +3,7 @@ const {
     createProduct, getSellerProducts, updateProduct, deleteProduct
 } = require("../controllers/productController");
 const {
-    getSellerOrders, getSellerOrderById, updateOrderStatus, handoverToCourier
+    getSellerOrders, getSellerOrderById, updateOrderStatus, handoverToCourier, getSellerAnalytics
 } = require("../controllers/sellerController");
 const auth = require("../middleware/auth");
 const checkRole = require("../middleware/checkRole");
@@ -22,4 +22,7 @@ router.get("/orders", getSellerOrders);
 router.get("/order/:id", getSellerOrderById);
 router.put("/order/:id/status", updateOrderStatus);
 router.put("/order/:id/handover", handoverToCourier);
+
+// ... (existing imports and routes)
+router.get("/analytics", getSellerAnalytics);
 module.exports = router;

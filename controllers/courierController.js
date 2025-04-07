@@ -214,3 +214,58 @@ exports.getCourierDashboard = async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 };
+
+// ... (existing imports and endpoints remain unchanged)
+
+exports.getCourierAnalytics = async (req, res) => {
+    const courierId = req.user.id;
+    try {
+        const courier = await User.findById(courierId);
+        if (!courier || courier.role !== "courier") {
+            return res.status(400).json({ success: false, message: "Invalid courier" });
+        }
+
+        // Total orders handled by status
+        const orders = await Order.find({ "courierDetails.courierId": courierId });
+        const statusBreakdown = {
+            totalOrders: orders.length,
+            pending: orders.filter(o => o.courierStatus === "Pending").length,
+            pickedUp: orders.filter(o => o.courierStatus === "Picked Up").length,
+            inTransit: orders.filter(o => o.courierStatus === "In Transit").length,
+            outForDelivery: orders.filter(o => o.courierStatus === "Out for Delivery").length,
+            delivered: orders.filter(o => o.courierStatus === "Delivered").length,
+            failed: orders.filter(o => o.courierStatus === "Failed Delivery").length
+        };
+
+        // Delivery success rate
+        const delivered = statusBreakdown.delivered;
+        const failed = statusBreakdown.failed;
+        const successRate = delivered + failed > 0 ? (delivered / (delivered + failed)) * 100 : 0;
+
+        // Average delivery time
+        const deliveryTimes = await Order.aggregate([
+            { $match: { "courierDetails.courierId": courierId, courierStatus: "Delivered" } },
+            { $unwind: "$statusHistory" },
+            { $match: { "statusHistory.status": { $in: ["Courier updated to Picked Up", "Courier updated to Delivered"] } } },
+            { $group: {
+                    _id: "$_id",
+                    pickedUp: { $min: { $cond: [{ $eq: ["$statusHistory.status", "Courier updated to Picked Up"] }, "$statusHistory.updatedAt", null] } },
+                    delivered: { $max: { $cond: [{ $eq: ["$statusHistory.status", "Courier updated to Delivered"] }, "$statusHistory.updatedAt", null] } }
+                } },
+            { $match: { pickedUp: { $ne: null }, delivered: { $ne: null } } },
+            { $project: { timeDiff: { $subtract: ["$delivered", "$pickedUp"] } } },
+            { $group: { _id: null, avgTime: { $avg: "$timeDiff" } } } // Time in milliseconds
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                statusBreakdown,
+                successRate: successRate.toFixed(2),
+                averageDeliveryTime: deliveryTimes[0]?.avgTime ? (deliveryTimes[0].avgTime / (1000 * 60 * 60)).toFixed(2) + " hours" : "N/A"
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
