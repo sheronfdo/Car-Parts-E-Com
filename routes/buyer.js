@@ -2,7 +2,8 @@ const express = require("express");
 const {
     getAllProducts,
     searchProducts,
-    getProductById
+    getProductById,
+    getProductFilterOptions
 } = require("../controllers/buyerProductController");
 const {
     addToCart,
@@ -25,6 +26,8 @@ const checkRole = require("../middleware/checkRole");
 router.get("/products", getAllProducts);
 router.get("/products/search", searchProducts);
 router.get("/products/:id", getProductById);
+
+router.get("/product-filter-options", getProductFilterOptions);
 
 router.post("/order/notify", notifyOrder);
 
