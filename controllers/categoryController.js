@@ -33,10 +33,51 @@ exports.createCategory = async (req, res) => {
 };
 
 // Get all categories (exclude deleted by default)
+// exports.getAllCategories = async (req, res) => {
+//     try {
+//         const categories = await Category.find({ status: "active" }).populate("parentCategory", "name");
+//         res.json({ success: true, data: categories });
+//     } catch (err) {
+//         res.status(500).json({ success: false, message: err.message });
+//     }
+// };
+
 exports.getAllCategories = async (req, res) => {
     try {
+        // Fetch all active categories with populated parentCategory
         const categories = await Category.find({ status: "active" }).populate("parentCategory", "name");
-        res.json({ success: true, data: categories });
+
+        // Separate parent categories (those with no parentCategory) and subcategories
+        const parentCategories = categories.filter(cat => !cat.parentCategory);
+        const subCategories = categories.filter(cat => cat.parentCategory);
+
+        // Map parent categories and attach their subcategories
+        const result = parentCategories.map(parent => {
+            const subCategoryList = subCategories
+                .filter(sub => sub.parentCategory && sub.parentCategory._id.toString() === parent._id.toString())
+                .map(sub => ({
+                    _id: sub._id,
+                    name: sub.name,
+                    parentCategory: sub.parentCategory,
+                    status: sub.status,
+                    createdAt: sub.createdAt,
+                    updatedAt: sub.updatedAt,
+                    __v: sub.__v
+                }));
+
+            return {
+                _id: parent._id,
+                name: parent.name,
+                parentCategory: parent.parentCategory, // null for parent categories
+                status: parent.status,
+                createdAt: parent.createdAt,
+                updatedAt: parent.updatedAt,
+                __v: parent.__v,
+                categoryOption: subCategoryList
+            };
+        });
+
+        res.json({ success: true, data: result });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
