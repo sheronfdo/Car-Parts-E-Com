@@ -143,6 +143,43 @@ exports.updateCourierStatus = async (req, res) => {
     }
 };
 
+// exports.reportDeliveryIssue = async (req, res) => {
+//     const courierId = req.user.id;
+//     const { id } = req.params;
+//     const { reason } = req.body;
+//
+//     if (!reason) {
+//         return res.status(400).json({ success: false, message: "Reason is required" });
+//     }
+//
+//     try {
+//         const order = await Order.findOne({
+//             _id: id,
+//             "courierDetails.courierId": courierId
+//         });
+//
+//         if (!order) {
+//             return res.status(404).json({ success: false, message: "Order not found or not assigned to you" });
+//         }
+//
+//         order.courierStatus = "Failed Delivery";
+//         // order.statusHistory.push({
+//         //     status: `Delivery failed: ${reason}`,
+//         //     updatedBy: { role: "courier", userId: courierId }
+//         // });
+//         order.status = "Shipped";
+//         // order.statusHistory.push({
+//         //     status: "Order status reverted to Shipped due to failure",
+//         //     updatedBy: { role: "system",userId: null }
+//         // });
+//
+//         await order.save();
+//         res.status(200).json({ success: true, message: "Delivery issue reported" });
+//     } catch (err) {
+//         res.status(500).json({ success: false, message: err.message });
+//     }
+// };
+
 exports.reportDeliveryIssue = async (req, res) => {
     const courierId = req.user.id;
     const { id } = req.params;
@@ -163,15 +200,26 @@ exports.reportDeliveryIssue = async (req, res) => {
         }
 
         order.courierStatus = "Failed Delivery";
+
+        // Push courier-reported failure with full updatedBy object
         order.statusHistory.push({
             status: `Delivery failed: ${reason}`,
-            updatedBy: { role: "courier", userId: courierId }
+            updatedBy: {
+                role: "courier",
+                userId: courierId
+            }
         });
-        order.status = "Shipped";
+
+        // Push system status update with a null userId for "system" role
         order.statusHistory.push({
             status: "Order status reverted to Shipped due to failure",
-            updatedBy: { role: "system" }
+            updatedBy: {
+                role: "system",
+                userId: null // No specific user for system; null is allowed since userId isn’t required
+            }
         });
+
+        order.status = "Shipped";
 
         await order.save();
         res.status(200).json({ success: true, message: "Delivery issue reported" });
