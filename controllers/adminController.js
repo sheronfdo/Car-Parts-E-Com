@@ -5,7 +5,7 @@ const bcrypt = require("bcryptjs");
 
 exports.getAdmins = async (req, res) => {
     try {
-        const admins = await User.find({ role: "admin" });
+        const admins = await User.find({ role: "admin", status: "active" });
         res.json({ success: true, data: admins });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -68,7 +68,7 @@ exports.deleteAdmin = async (req, res) => {
 // --- Courier Management ---
 exports.getCouriers = async (req, res) => {
     try {
-        const couriers = await User.find({ role: "courier" });
+        const couriers = await User.find({ role: "courier", status: "active" });
         res.json({ success: true, data: couriers });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -149,7 +149,7 @@ exports.deleteCourier = async (req, res) => {
 
 exports.getAllSellers = async (req, res) => {
     try {
-        const sellers = await User.find({ role: "seller" });
+        const sellers = await User.find({ role: "seller", status: "active" });
         res.json({ success: true, data: sellers });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -202,7 +202,7 @@ exports.deleteSeller = async (req, res) => {
 
 exports.getAllBuyers = async (req, res) => {
     try {
-        const buyers = await User.find({ role: "buyer" });
+        const buyers = await User.find({ role: "buyer", status: "active" });
         res.json({ success: true, data: buyers });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
