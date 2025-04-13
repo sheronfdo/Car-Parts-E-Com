@@ -2,8 +2,50 @@ const Order = require("../models/Order");
 const Product = require("../models/Product");
 
 // Get all orders containing seller's products
+// exports.getSellerOrders = async (req, res) => {
+//     const sellerId = req.user.id;
+//     try {
+//         // Step 1: Find all orders and populate product details
+//         const orders = await Order.find()
+//             .populate({
+//                 path: "items.productId",
+//                 select: "title price condition brand images sellerId" // Include sellerId from Product
+//             })
+//             .populate("buyerId", "name email phone");
+//
+//         // Step 2: Filter orders to include only those with seller's products
+//         const filteredOrders = orders
+//             .map(order => {
+//                 // Filter items where productId.sellerId matches the seller
+//                 const sellerItems = order.items.filter(item =>
+//                     item.productId && // Ensure productId is populated
+//                     item.productId.sellerId && // Ensure sellerId exists
+//                     item.productId.sellerId.toString() === sellerId // Match sellerId
+//                 );
+//
+//                 // If no items belong to this seller, skip the order
+//                 if (sellerItems.length === 0) return null;
+//
+//                 // Return the order with only the seller's items
+//                 return {
+//                     ...order.toObject(),
+//                     items: sellerItems
+//                 };
+//             })
+//             .filter(order => order !== null); // Remove null entries
+//
+//         res.status(200).json({ success: true, data: filteredOrders });
+//     } catch (err) {
+//         res.status(500).json({ success: false, message: err.message });
+//     }
+// };
+
 exports.getSellerOrders = async (req, res) => {
     const sellerId = req.user.id;
+    const page = parseInt(req.query.page) || 1; // Default to page 1
+    const limit = parseInt(req.query.limit) || 10; // Default to 10 items per page
+    const skip = (page - 1) * limit; // Calculate documents to skip
+
     try {
         // Step 1: Find all orders and populate product details
         const orders = await Order.find()
@@ -34,11 +76,25 @@ exports.getSellerOrders = async (req, res) => {
             })
             .filter(order => order !== null); // Remove null entries
 
-        res.status(200).json({ success: true, data: filteredOrders });
+        // Step 3: Paginate the filtered orders
+        const total = filteredOrders.length; // Total number of filtered orders
+        const paginatedOrders = filteredOrders.slice(skip, skip + limit); // Apply pagination
+
+        // Step 4: Construct the response with pagination details
+        res.status(200).json({
+            success: true,
+            data: paginatedOrders,
+            pagination: {
+                page: page,
+                limit: limit,
+                total: total
+            }
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 };
+
 
 // Get specific order details for seller's products
 exports.getSellerOrderById = async (req, res) => {

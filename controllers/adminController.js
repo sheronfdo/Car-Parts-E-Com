@@ -236,6 +236,7 @@ exports.getAdminAnalytics = async (req, res) => {
 
         // Users by role
         const usersByRole = await User.aggregate([
+            { $match: { status: "active" } },
             { $group: { _id: "$role", count: { $sum: 1 } } }
         ]);
 
