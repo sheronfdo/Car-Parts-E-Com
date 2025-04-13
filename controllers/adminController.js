@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const Order = require("../models/Order");
 const Product = require("../models/Product");
@@ -225,106 +226,411 @@ exports.deleteBuyer = async (req, res) => {
     }
 };
 
+// exports.getAdminAnalytics = async (req, res) => {
+//     try {
+//         // Total orders and revenue
+//         const totalOrders = await Order.countDocuments();
+//         const totalRevenue = await Order.aggregate([
+//             { $match: { status: "Delivered" } },
+//             { $group: { _id: null, total: { $sum: "$total" } } }
+//         ]);
+
+//         // Users by role
+//         const usersByRole = await User.aggregate([
+//             { $match: { status: "active" } },
+//             { $group: { _id: "$role", count: { $sum: 1 } } }
+//         ]);
+
+//         // Order status breakdown
+//         const orderStatusBreakdown = await Order.aggregate([
+//             { $group: { _id: "$status", count: { $sum: 1 } } }
+//         ]);
+
+//         // Top-selling products
+//         const topProducts = await Order.aggregate([
+//             { $unwind: "$items" },
+//             { $match: { "items.sellerStatus": "Delivered" } },
+//             { $group: { _id: "$items.productId", totalSold: { $sum: "$items.quantity" }, revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } } } },
+//             { $sort: { totalSold: -1 } },
+//             { $limit: 5 },
+//             { $lookup: { from: "products", localField: "_id", foreignField: "_id", as: "product" } },
+//             { $unwind: "$product" },
+//             { $project: { title: "$product.title", totalSold: 1, revenue: 1 } }
+//         ]);
+
+//         // Top sellers
+//         const topSellers = await Order.aggregate([
+//             { $unwind: "$items" },
+//             { $match: { "items.sellerStatus": "Delivered" } },
+//             { $lookup: { from: "products", localField: "items.productId", foreignField: "_id", as: "product" } },
+//             { $unwind: "$product" },
+//             { $group: { _id: "$product.sellerId", revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } } } },
+//             { $sort: { revenue: -1 } },
+//             { $limit: 5 },
+//             { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "seller" } },
+//             { $unwind: "$seller" },
+//             { $project: { name: "$seller.name", storeName: "$seller.storeName", revenue: 1 } }
+//         ]);
+
+//         // Courier performance
+//         const courierPerformance = await Order.aggregate([
+//             { $match: { "courierDetails.courierId": { $ne: null } } },
+//             { $group: {
+//                     _id: "$courierDetails.courierId",
+//                     delivered: { $sum: { $cond: [{ $eq: ["$courierStatus", "Delivered"] }, 1, 0] } },
+//                     failed: { $sum: { $cond: [{ $eq: ["$courierStatus", "Failed Delivery"] }, 1, 0] } }
+//                 } },
+//             { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "courier" } },
+//             { $unwind: "$courier" },
+//             { $project: { name: "$courier.name", delivered: 1, failed: 1 } }
+//         ]);
+
+//         res.status(200).json({
+//             success: true,
+//             data: {
+//                 totalOrders,
+//                 totalRevenue: totalRevenue[0]?.total || 0,
+//                 usersByRole: Object.fromEntries(usersByRole.map(r => [r._id, r.count])),
+//                 orderStatusBreakdown: Object.fromEntries(orderStatusBreakdown.map(s => [s._id, s.count])),
+//                 topProducts,
+//                 topSellers,
+//                 courierPerformance
+//             }
+//         });
+//     } catch (err) {
+//         res.status(500).json({ success: false, message: err.message });
+//     }
+// };
+
+
 exports.getAdminAnalytics = async (req, res) => {
     try {
-        // Total orders and revenue
-        const totalOrders = await Order.countDocuments();
-        const totalRevenue = await Order.aggregate([
-            { $match: { status: "Delivered" } },
-            { $group: { _id: null, total: { $sum: "$total" } } }
+        // Step 1: Main aggregation pipeline for order and item-level metrics
+        const orderAnalytics = await Order.aggregate([
+            // Unwind items for item-level analysis
+            { $unwind: "$items" },
+            // Facet to compute multiple metrics
+            {
+                $facet: {
+                    // Total orders (count of items)
+                    totalOrders: [{ $count: "count" }],
+                    // Total revenue (based on items with sellerStatus: "Delivered")
+                    totalRevenue: [
+                        { $match: { "items.sellerStatus": "Delivered" } },
+                        {
+                            $group: {
+                                _id: null,
+                                total: { $sum: { $multiply: ["$items.quantity", "$items.price"] } }
+                            }
+                        }
+                    ],
+                    // Seller status breakdown
+                    sellerStatusBreakdown: [
+                        {
+                            $group: {
+                                _id: "$items.sellerStatus",
+                                count: { $sum: 1 }
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 0,
+                                status: "$_id",
+                                count: 1
+                            }
+                        }
+                    ],
+                    // Courier status breakdown
+                    courierStatusBreakdown: [
+                        {
+                            $group: {
+                                _id: "$items.courierStatus",
+                                count: { $sum: 1 }
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 0,
+                                status: "$_id",
+                                count: 1
+                            }
+                        }
+                    ],
+                    // Top-selling products
+                    topProducts: [
+                        { $match: { "items.sellerStatus": "Delivered" } },
+                        {
+                            $group: {
+                                _id: "$items.productId",
+                                totalSold: { $sum: "$items.quantity" },
+                                revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } }
+                            }
+                        },
+                        { $sort: { totalSold: -1 } },
+                        { $limit: 5 },
+                        {
+                            $lookup: {
+                                from: "products",
+                                localField: "_id",
+                                foreignField: "_id",
+                                as: "product"
+                            }
+                        },
+                        { $unwind: "$product" },
+                        {
+                            $project: {
+                                _id: 0,
+                                title: "$product.title",
+                                totalSold: 1,
+                                revenue: 1
+                            }
+                        }
+                    ],
+                    // Top sellers
+                    topSellers: [
+                        { $match: { "items.sellerStatus": "Delivered" } },
+                        {
+                            $lookup: {
+                                from: "products",
+                                localField: "items.productId",
+                                foreignField: "_id",
+                                as: "product"
+                            }
+                        },
+                        { $unwind: "$product" },
+                        {
+                            $group: {
+                                _id: "$product.sellerId",
+                                revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } }
+                            }
+                        },
+                        { $sort: { revenue: -1 } },
+                        { $limit: 5 },
+                        {
+                            $lookup: {
+                                from: "users",
+                                localField: "_id",
+                                foreignField: "_id",
+                                as: "seller"
+                            }
+                        },
+                        { $unwind: "$seller" },
+                        {
+                            $project: {
+                                _id: 0,
+                                name: "$seller.name",
+                                storeName: "$seller.storeName",
+                                revenue: 1
+                            }
+                        }
+                    ],
+                    // Courier performance
+                    courierPerformance: [
+                        { $match: { "items.courierDetails.courierId": { $ne: null } } },
+                        {
+                            $group: {
+                                _id: "$items.courierDetails.courierId",
+                                delivered: {
+                                    $sum: { $cond: [{ $eq: ["$items.courierStatus", "Delivered"] }, 1, 0] }
+                                },
+                                failed: {
+                                    $sum: { $cond: [{ $eq: ["$items.courierStatus", "Failed Delivery"] }, 1, 0] }
+                                }
+                            }
+                        },
+                        {
+                            $lookup: {
+                                from: "users",
+                                localField: "_id",
+                                foreignField: "_id",
+                                as: "courier"
+                            }
+                        },
+                        { $unwind: "$courier" },
+                        {
+                            $project: {
+                                _id: 0,
+                                name: "$courier.name",
+                                delivered: 1,
+                                failed: 1
+                            }
+                        }
+                    ]
+                }
+            }
         ]);
 
-        // Users by role
+        // Step 2: Users by role (unchanged, not related to items)
         const usersByRole = await User.aggregate([
             { $match: { status: "active" } },
             { $group: { _id: "$role", count: { $sum: 1 } } }
         ]);
 
-        // Order status breakdown
+        // Step 3: Order status breakdown (optional, kept for order-level context)
         const orderStatusBreakdown = await Order.aggregate([
             { $group: { _id: "$status", count: { $sum: 1 } } }
         ]);
 
-        // Top-selling products
-        const topProducts = await Order.aggregate([
-            { $unwind: "$items" },
-            { $match: { "items.sellerStatus": "Delivered" } },
-            { $group: { _id: "$items.productId", totalSold: { $sum: "$items.quantity" }, revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } } } },
-            { $sort: { totalSold: -1 } },
-            { $limit: 5 },
-            { $lookup: { from: "products", localField: "_id", foreignField: "_id", as: "product" } },
-            { $unwind: "$product" },
-            { $project: { title: "$product.title", totalSold: 1, revenue: 1 } }
-        ]);
-
-        // Top sellers
-        const topSellers = await Order.aggregate([
-            { $unwind: "$items" },
-            { $match: { "items.sellerStatus": "Delivered" } },
-            { $lookup: { from: "products", localField: "items.productId", foreignField: "_id", as: "product" } },
-            { $unwind: "$product" },
-            { $group: { _id: "$product.sellerId", revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } } } },
-            { $sort: { revenue: -1 } },
-            { $limit: 5 },
-            { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "seller" } },
-            { $unwind: "$seller" },
-            { $project: { name: "$seller.name", storeName: "$seller.storeName", revenue: 1 } }
-        ]);
-
-        // Courier performance
-        const courierPerformance = await Order.aggregate([
-            { $match: { "courierDetails.courierId": { $ne: null } } },
-            { $group: {
-                    _id: "$courierDetails.courierId",
-                    delivered: { $sum: { $cond: [{ $eq: ["$courierStatus", "Delivered"] }, 1, 0] } },
-                    failed: { $sum: { $cond: [{ $eq: ["$courierStatus", "Failed Delivery"] }, 1, 0] } }
-                } },
-            { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "courier" } },
-            { $unwind: "$courier" },
-            { $project: { name: "$courier.name", delivered: 1, failed: 1 } }
-        ]);
-
+        // Step 4: Format the response
         res.status(200).json({
             success: true,
             data: {
-                totalOrders,
-                totalRevenue: totalRevenue[0]?.total || 0,
+                totalOrders: orderAnalytics[0].totalOrders[0]?.count || 0,
+                totalRevenue: orderAnalytics[0].totalRevenue[0]?.total || 0,
                 usersByRole: Object.fromEntries(usersByRole.map(r => [r._id, r.count])),
                 orderStatusBreakdown: Object.fromEntries(orderStatusBreakdown.map(s => [s._id, s.count])),
-                topProducts,
-                topSellers,
-                courierPerformance
+                sellerStatusBreakdown: Object.fromEntries(
+                    orderAnalytics[0].sellerStatusBreakdown.map(s => [s.status, s.count])
+                ),
+                courierStatusBreakdown: Object.fromEntries(
+                    orderAnalytics[0].courierStatusBreakdown.map(s => [s.status, s.count])
+                ),
+                topProducts: orderAnalytics[0].topProducts,
+                topSellers: orderAnalytics[0].topSellers,
+                courierPerformance: orderAnalytics[0].courierPerformance
             }
         });
     } catch (err) {
+        console.error(`Error in getAdminAnalytics:`, err);
         res.status(500).json({ success: false, message: err.message });
     }
 };
 
+// exports.getAllOrders = async (req, res) => {
+//     try {
+//         const { status, startDate, endDate, district } = req.query;
+
+//         // Build query object
+//         const query = {};
+//         if (status) query.status = status;
+//         if (district) query["shippingAddress.district"] = district;
+//         if (startDate || endDate) {
+//             query.createdAt = {};
+//             if (startDate) query.createdAt.$gte = new Date(startDate);
+//             if (endDate) query.createdAt.$lte = new Date(endDate);
+//         }
+
+//         const orders = await Order.find(query)
+//             .populate("buyerId", "name email phone")
+//             .populate("items.productId", "title price brand condition images")
+//             .populate("courierDetails.courierId", "name phone region");
+
+//         res.status(200).json({
+//             success: true,
+//             data: orders
+//         });
+//     } catch (err) {
+//         res.status(500).json({ success: false, message: err.message });
+//     }
+// };
+
+
+
 exports.getAllOrders = async (req, res) => {
     try {
-        const { status, startDate, endDate, district } = req.query;
+        const { status, startDate, endDate, district, sellerStatus, courierStatus } = req.query;
 
-        // Build query object
-        const query = {};
-        if (status) query.status = status;
-        if (district) query["shippingAddress.district"] = district;
+        // Build order-level query
+        const orderQuery = {};
+        if (status) orderQuery.status = status;
+        if (district) orderQuery["shippingAddress.district"] = district;
         if (startDate || endDate) {
-            query.createdAt = {};
-            if (startDate) query.createdAt.$gte = new Date(startDate);
-            if (endDate) query.createdAt.$lte = new Date(endDate);
+            orderQuery.createdAt = {};
+            if (startDate) orderQuery.createdAt.$gte = new Date(startDate);
+            if (endDate) orderQuery.createdAt.$lte = new Date(endDate);
         }
 
-        const orders = await Order.find(query)
-            .populate("buyerId", "name email phone")
-            .populate("items.productId", "title price brand condition images")
-            .populate("courierDetails.courierId", "name phone region");
+        // Build item-level match conditions
+        const itemMatch = {};
+        if (sellerStatus) itemMatch["items.sellerStatus"] = sellerStatus;
+        if (courierStatus) itemMatch["items.courierStatus"] = courierStatus;
+
+        // Use aggregation to return a flattened list of items
+        const items = await Order.aggregate([
+            { $match: orderQuery },
+            { $unwind: "$items" },
+            itemMatch["items.sellerStatus"] || itemMatch["items.courierStatus"]
+                ? { $match: itemMatch }
+                : { $match: {} },
+            // Populate buyerId
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "buyerId",
+                    foreignField: "_id",
+                    as: "buyerId"
+                }
+            },
+            { $unwind: "$buyerId" },
+            // Populate items.productId
+            {
+                $lookup: {
+                    from: "products",
+                    localField: "items.productId",
+                    foreignField: "_id",
+                    as: "items.productId"
+                }
+            },
+            { $unwind: "$items.productId" },
+            // Populate items.courierDetails.courierId
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "items.courierDetails.courierId",
+                    foreignField: "_id",
+                    as: "items.courierDetails.courierId"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$items.courierDetails.courierId",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            // Project the final item structure
+            {
+                $project: {
+                    orderId: "$_id",
+                    buyer: {
+                        _id: "$buyerId._id",
+                        name: "$buyerId.name",
+                        email: "$buyerId.email",
+                        phone: "$buyerId.phone"
+                    },
+                    item: {
+                        product: {
+                            _id: "$items.productId._id",
+                            title: "$items.productId.title",
+                            price: "$items.productId.price",
+                            brand: "$items.productId.brand",
+                            condition: "$items.productId.condition",
+                            images: "$items.productId.images"
+                        },
+                        quantity: "$items.quantity",
+                        price: "$items.price",
+                        sellerStatus: "$items.sellerStatus",
+                        courierDetails: {
+                            courierId: "$items.courierDetails.courierId",
+                            trackingNumber: "$items.courierDetails.trackingNumber"
+                        },
+                        courierStatus: "$items.courierStatus",
+                        statusHistory: "$items.statusHistory"
+                    },
+                    orderStatus: "$status",
+                    shippingAddress: "$shippingAddress",
+                    orderCreatedAt: "$createdAt",
+                    orderUpdatedAt: "$updatedAt"
+                }
+            },
+            { $sort: { orderCreatedAt: -1 } }
+        ]);
 
         res.status(200).json({
             success: true,
-            data: orders
+            data: items
         });
     } catch (err) {
+        console.error(`Error in getAllOrders:`, err);
         res.status(500).json({ success: false, message: err.message });
     }
 };
