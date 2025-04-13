@@ -1,5 +1,7 @@
+const mongoose = require("mongoose");
 const Order = require("../models/Order");
 const User = require("../models/User");
+
 
 // exports.getCourierOrders = async (req, res) => {
 //     const courierId = req.user.id;
@@ -688,81 +690,268 @@ exports.reportDeliveryIssue = async (req, res) => {
     }
 };
 
+// exports.getCourierDashboard = async (req, res) => {
+//     const courierId = req.user.id;
+//     try {
+//         const courier = await User.findById(courierId);
+//         if (!courier || courier.role !== "courier" || !courier.region) {
+//             return res.status(400).json({ success: false, message: "Invalid courier or region not assigned" });
+//         }
+
+//         const orders = await Order.find({
+//             $or: [
+//                 { "courierDetails.courierId": courierId },
+//                 {
+//                     "shippingAddress.district": courier.region,
+//                     "courierDetails.courierId": null,
+//                     status: "Shipped"
+//                 }
+//             ]
+//         });
+
+//         const summary = {
+//             totalOrders: orders.length,
+//             pending: orders.filter(o => o.courierStatus === "Pending").length,
+//             pickedUp: orders.filter(o => o.courierStatus === "Picked Up").length,
+//             inTransit: orders.filter(o => o.courierStatus === "In Transit").length,
+//             outForDelivery: orders.filter(o => o.courierStatus === "Out for Delivery").length,
+//             delivered: orders.filter(o => o.courierStatus === "Delivered").length,
+//             failed: orders.filter(o => o.courierStatus === "Failed Delivery").length
+//         };
+
+//         res.status(200).json({ success: true, data: summary });
+//     } catch (err) {
+//         res.status(500).json({ success: false, message: err.message });
+//     }
+// };
+
+
 exports.getCourierDashboard = async (req, res) => {
     const courierId = req.user.id;
+
     try {
+        // Step 1: Validate the courier
         const courier = await User.findById(courierId);
         if (!courier || courier.role !== "courier" || !courier.region) {
             return res.status(400).json({ success: false, message: "Invalid courier or region not assigned" });
         }
 
+        // Step 2: Fetch orders and filter items (initial fetch for implicit assignment)
         const orders = await Order.find({
             $or: [
-                { "courierDetails.courierId": courierId },
+                { "items.courierDetails.courierId": courierId },
                 {
                     "shippingAddress.district": courier.region,
-                    "courierDetails.courierId": null,
-                    status: "Shipped"
+                    "items.courierDetails.courierId": null,
+                    "items.sellerStatus": "Shipped" // Match previous endpoints' condition
                 }
             ]
+        }).lean(); // Use lean for performance
+
+        // Step 3: Filter items accessible to the courier (including implicit assignment)
+        const accessibleItems = [];
+        orders.forEach(order => {
+            order.items.forEach(item => {
+                // Explicit assignment via courierDetails.courierId
+                const isAssignedToCourier = item.courierDetails && item.courierDetails.courierId && item.courierDetails.courierId.toString() === courierId;
+
+                // Implicit assignment via statusHistory
+                let implicitCourierId = null;
+                if (!isAssignedToCourier && item.statusHistory) {
+                    const courierUpdates = item.statusHistory.filter(history =>
+                        history.updatedBy.role === "courier" && history.updatedBy.userId
+                    );
+                    if (courierUpdates.length > 0) {
+                        implicitCourierId = courierUpdates[courierUpdates.length - 1].updatedBy.userId.toString();
+                    }
+                }
+
+                const assignedCourierId = isAssignedToCourier ? item.courierDetails.courierId.toString() : implicitCourierId;
+                const isAssigned = assignedCourierId === courierId;
+
+                // Unassigned but matches region and sellerStatus
+                const isUnassignedAndMatchesRegion = !assignedCourierId && item.sellerStatus === "Shipped" && order.shippingAddress.district === courier.region;
+
+                if (isAssigned || isUnassignedAndMatchesRegion) {
+                    accessibleItems.push({
+                        courierStatus: item.courierStatus || "Pending" // Ensure default value
+                    });
+                }
+            });
         });
 
+        // Step 4: Compute item-level summary
         const summary = {
-            totalOrders: orders.length,
-            pending: orders.filter(o => o.courierStatus === "Pending").length,
-            pickedUp: orders.filter(o => o.courierStatus === "Picked Up").length,
-            inTransit: orders.filter(o => o.courierStatus === "In Transit").length,
-            outForDelivery: orders.filter(o => o.courierStatus === "Out for Delivery").length,
-            delivered: orders.filter(o => o.courierStatus === "Delivered").length,
-            failed: orders.filter(o => o.courierStatus === "Failed Delivery").length
+            totalOrders: accessibleItems.length, // Now counts items, not orders
+            pending: accessibleItems.filter(item => item.courierStatus === "Pending").length,
+            pickedUp: accessibleItems.filter(item => item.courierStatus === "Picked Up").length,
+            inTransit: accessibleItems.filter(item => item.courierStatus === "In Transit").length,
+            outForDelivery: accessibleItems.filter(item => item.courierStatus === "Out for Delivery").length,
+            delivered: accessibleItems.filter(item => item.courierStatus === "Delivered").length,
+            failed: accessibleItems.filter(item => item.courierStatus === "Failed Delivery").length
         };
 
         res.status(200).json({ success: true, data: summary });
     } catch (err) {
+        console.error(`Error in getCourierDashboard for courierId ${courierId}:`, err);
         res.status(500).json({ success: false, message: err.message });
     }
 };
 
 // ... (existing imports and endpoints remain unchanged)
 
+// exports.getCourierAnalytics = async (req, res) => {
+//     const courierId = req.user.id;
+//     try {
+//         const courier = await User.findById(courierId);
+//         if (!courier || courier.role !== "courier") {
+//             return res.status(400).json({ success: false, message: "Invalid courier" });
+//         }
+
+//         // Total orders handled by status
+//         const orders = await Order.find({ "courierDetails.courierId": courierId });
+//         const statusBreakdown = {
+//             totalOrders: orders.length,
+//             pending: orders.filter(o => o.courierStatus === "Pending").length,
+//             pickedUp: orders.filter(o => o.courierStatus === "Picked Up").length,
+//             inTransit: orders.filter(o => o.courierStatus === "In Transit").length,
+//             outForDelivery: orders.filter(o => o.courierStatus === "Out for Delivery").length,
+//             delivered: orders.filter(o => o.courierStatus === "Delivered").length,
+//             failed: orders.filter(o => o.courierStatus === "Failed Delivery").length
+//         };
+
+//         // Delivery success rate
+//         const delivered = statusBreakdown.delivered;
+//         const failed = statusBreakdown.failed;
+//         const successRate = delivered + failed > 0 ? (delivered / (delivered + failed)) * 100 : 0;
+
+//         // Average delivery time
+//         const deliveryTimes = await Order.aggregate([
+//             { $match: { "courierDetails.courierId": courierId, courierStatus: "Delivered" } },
+//             { $unwind: "$statusHistory" },
+//             { $match: { "statusHistory.status": { $in: ["Courier updated to Picked Up", "Courier updated to Delivered"] } } },
+//             { $group: {
+//                     _id: "$_id",
+//                     pickedUp: { $min: { $cond: [{ $eq: ["$statusHistory.status", "Courier updated to Picked Up"] }, "$statusHistory.updatedAt", null] } },
+//                     delivered: { $max: { $cond: [{ $eq: ["$statusHistory.status", "Courier updated to Delivered"] }, "$statusHistory.updatedAt", null] } }
+//                 } },
+//             { $match: { pickedUp: { $ne: null }, delivered: { $ne: null } } },
+//             { $project: { timeDiff: { $subtract: ["$delivered", "$pickedUp"] } } },
+//             { $group: { _id: null, avgTime: { $avg: "$timeDiff" } } } // Time in milliseconds
+//         ]);
+
+//         res.status(200).json({
+//             success: true,
+//             data: {
+//                 statusBreakdown,
+//                 successRate: successRate.toFixed(2),
+//                 averageDeliveryTime: deliveryTimes[0]?.avgTime ? (deliveryTimes[0].avgTime / (1000 * 60 * 60)).toFixed(2) + " hours" : "N/A"
+//             }
+//         });
+//     } catch (err) {
+//         res.status(500).json({ success: false, message: err.message });
+//     }
+// };
+
 exports.getCourierAnalytics = async (req, res) => {
     const courierId = req.user.id;
+
     try {
+        // Step 1: Validate the courier
         const courier = await User.findById(courierId);
         if (!courier || courier.role !== "courier") {
             return res.status(400).json({ success: false, message: "Invalid courier" });
         }
 
-        // Total orders handled by status
-        const orders = await Order.find({ "courierDetails.courierId": courierId });
+        // Step 2: Fetch orders with items assigned to the courier
+        const orders = await Order.find({
+            "items.courierDetails.courierId": new mongoose.Types.ObjectId(courierId)
+        }).lean();
+
+        // Step 3: Filter items assigned to the courier (including implicit assignment)
+        const assignedItems = [];
+        orders.forEach(order => {
+            order.items.forEach(item => {
+                // Explicit assignment via courierDetails.courierId
+                const isAssignedToCourier = item.courierDetails && item.courierDetails.courierId && item.courierDetails.courierId.toString() === courierId;
+
+                // Implicit assignment via statusHistory
+                let implicitCourierId = null;
+                if (!isAssignedToCourier && item.statusHistory) {
+                    const courierUpdates = item.statusHistory.filter(history =>
+                        history.updatedBy.role === "courier" && history.updatedBy.userId
+                    );
+                    if (courierUpdates.length > 0) {
+                        implicitCourierId = courierUpdates[courierUpdates.length - 1].updatedBy.userId.toString();
+                    }
+                }
+
+                const assignedCourierId = isAssignedToCourier ? item.courierDetails.courierId.toString() : implicitCourierId;
+                if (assignedCourierId === courierId) {
+                    assignedItems.push({
+                        courierStatus: item.courierStatus || "Pending"
+                    });
+                }
+            });
+        });
+
+        // Step 4: Compute item-level status breakdown
         const statusBreakdown = {
-            totalOrders: orders.length,
-            pending: orders.filter(o => o.courierStatus === "Pending").length,
-            pickedUp: orders.filter(o => o.courierStatus === "Picked Up").length,
-            inTransit: orders.filter(o => o.courierStatus === "In Transit").length,
-            outForDelivery: orders.filter(o => o.courierStatus === "Out for Delivery").length,
-            delivered: orders.filter(o => o.courierStatus === "Delivered").length,
-            failed: orders.filter(o => o.courierStatus === "Failed Delivery").length
+            totalOrders: assignedItems.length, // Now counts items, not orders
+            pending: assignedItems.filter(item => item.courierStatus === "Pending").length,
+            pickedUp: assignedItems.filter(item => item.courierStatus === "Picked Up").length,
+            inTransit: assignedItems.filter(item => item.courierStatus === "In Transit").length,
+            outForDelivery: assignedItems.filter(item => item.courierStatus === "Out for Delivery").length,
+            delivered: assignedItems.filter(item => item.courierStatus === "Delivered").length,
+            failed: assignedItems.filter(item => item.courierStatus === "Failed Delivery").length
         };
 
-        // Delivery success rate
+        // Step 5: Compute delivery success rate (item-level)
         const delivered = statusBreakdown.delivered;
         const failed = statusBreakdown.failed;
         const successRate = delivered + failed > 0 ? (delivered / (delivered + failed)) * 100 : 0;
 
-        // Average delivery time
+        // Step 6: Compute average delivery time (item-level)
         const deliveryTimes = await Order.aggregate([
-            { $match: { "courierDetails.courierId": courierId, courierStatus: "Delivered" } },
-            { $unwind: "$statusHistory" },
-            { $match: { "statusHistory.status": { $in: ["Courier updated to Picked Up", "Courier updated to Delivered"] } } },
-            { $group: {
-                    _id: "$_id",
-                    pickedUp: { $min: { $cond: [{ $eq: ["$statusHistory.status", "Courier updated to Picked Up"] }, "$statusHistory.updatedAt", null] } },
-                    delivered: { $max: { $cond: [{ $eq: ["$statusHistory.status", "Courier updated to Delivered"] }, "$statusHistory.updatedAt", null] } }
-                } },
+            { $unwind: "$items" },
+            {
+                $match: {
+                    "items.courierDetails.courierId": new mongoose.Types.ObjectId(courierId),
+                    "items.courierStatus": "Delivered"
+                }
+            },
+            { $unwind: "$items.statusHistory" },
+            {
+                $match: {
+                    "items.statusHistory.status": { $in: ["Courier updated to Picked Up", "Courier updated to Delivered"] }
+                }
+            },
+            {
+                $group: {
+                    _id: { orderId: "$_id", itemId: "$items._id" }, // Group by order and item
+                    pickedUp: {
+                        $min: {
+                            $cond: [
+                                { $eq: ["$items.statusHistory.status", "Courier updated to Picked Up"] },
+                                "$items.statusHistory.updatedAt",
+                                null
+                            ]
+                        }
+                    },
+                    delivered: {
+                        $max: {
+                            $cond: [
+                                { $eq: ["$items.statusHistory.status", "Courier updated to Delivered"] },
+                                "$items.statusHistory.updatedAt",
+                                null
+                            ]
+                        }
+                    }
+                }
+            },
             { $match: { pickedUp: { $ne: null }, delivered: { $ne: null } } },
             { $project: { timeDiff: { $subtract: ["$delivered", "$pickedUp"] } } },
-            { $group: { _id: null, avgTime: { $avg: "$timeDiff" } } } // Time in milliseconds
+            { $group: { _id: null, avgTime: { $avg: "$timeDiff" } } }
         ]);
 
         res.status(200).json({
@@ -774,6 +963,7 @@ exports.getCourierAnalytics = async (req, res) => {
             }
         });
     } catch (err) {
+        console.error(`Error in getCourierAnalytics for courierId ${courierId}:`, err);
         res.status(500).json({ success: false, message: err.message });
     }
 };
