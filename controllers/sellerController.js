@@ -1,5 +1,6 @@
 const Order = require("../models/Order");
 const Product = require("../models/Product");
+const User = require("../models/User");
 
 // Get all orders containing seller's products
 // exports.getSellerOrders = async (req, res) => {
@@ -464,63 +465,210 @@ exports.handoverToCourier = async (req, res) => {
     }
 };
 
+// exports.getSellerAnalytics = async (req, res) => {
+//     const sellerId = req.user.id;
+//     try {
+//         // Total orders and revenue for seller's products
+//         const orders = await Order.find().populate("items.productId");
+//         const sellerOrders = orders.filter(order =>
+//             order.items.some(item => item.productId && item.productId.sellerId.toString() === sellerId)
+//         );
+//         const totalOrders = sellerOrders.length;
+//         const totalRevenue = sellerOrders.reduce((sum, order) =>
+//                 sum + order.items.reduce((itemSum, item) =>
+//                         item.productId.sellerId.toString() === sellerId && item.sellerStatus === "Delivered"
+//                             ? itemSum + (item.quantity * item.price)
+//                             : itemSum,
+//                     0),
+//             0);
+
+//         // Order status breakdown for seller's items
+//         const statusBreakdown = sellerOrders.reduce((acc, order) => {
+//             order.items.forEach(item => {
+//                 if (item.productId.sellerId.toString() === sellerId) {
+//                     acc[item.sellerStatus] = (acc[item.sellerStatus] || 0) + 1;
+//                 }
+//             });
+//             return acc;
+//         }, {});
+
+//         // Top-selling products
+//         const topProducts = await Order.aggregate([
+//             { $unwind: "$items" },
+//             { $match: { "items.productId": { $in: (await Product.find({ sellerId })).map(p => p._id) }, "items.sellerStatus": "Delivered" } },
+//             { $group: { _id: "$items.productId", totalSold: { $sum: "$items.quantity" }, revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } } } },
+//             { $sort: { totalSold: -1 } },
+//             { $limit: 5 },
+//             { $lookup: { from: "products", localField: "_id", foreignField: "_id", as: "product" } },
+//             { $unwind: "$product" },
+//             { $project: { title: "$product.title", totalSold: 1, revenue: 1 } }
+//         ]);
+
+//         // Stock levels
+//         const lowStockProducts = await Product.find({
+//             sellerId,
+//             stock: { $lt: 10 }, // Threshold for low stock
+//             status: "active"
+//         }).select("title stock");
+
+//         res.status(200).json({
+//             success: true,
+//             data: {
+//                 totalOrders,
+//                 totalRevenue,
+//                 statusBreakdown,
+//                 topProducts,
+//                 lowStockProducts
+//             }
+//         });
+//     } catch (err) {
+//         res.status(500).json({ success: false, message: err.message });
+//     }
+// };
+
+
+
 exports.getSellerAnalytics = async (req, res) => {
     const sellerId = req.user.id;
-    try {
-        // Total orders and revenue for seller's products
-        const orders = await Order.find().populate("items.productId");
-        const sellerOrders = orders.filter(order =>
-            order.items.some(item => item.productId && item.productId.sellerId.toString() === sellerId)
-        );
-        const totalOrders = sellerOrders.length;
-        const totalRevenue = sellerOrders.reduce((sum, order) =>
-                sum + order.items.reduce((itemSum, item) =>
-                        item.productId.sellerId.toString() === sellerId && item.sellerStatus === "Delivered"
-                            ? itemSum + (item.quantity * item.price)
-                            : itemSum,
-                    0),
-            0);
 
-        // Order status breakdown for seller's items
-        const statusBreakdown = sellerOrders.reduce((acc, order) => {
-            order.items.forEach(item => {
-                if (item.productId.sellerId.toString() === sellerId) {
-                    acc[item.sellerStatus] = (acc[item.sellerStatus] || 0) + 1;
+    try {
+        if (User) {
+            const user = await User.findById(sellerId);
+            if (!user) {
+                return res.status(404).json({ success: false, message: "User not found" });
+            }
+            if (user.role !== "seller") {
+                return res.status(403).json({ success: false, message: "Access denied: User must be a seller" });
+            }
+        } else {
+            console.warn("User model not available, skipping role validation for sellerId:", sellerId);
+        }
+
+        const sellerProductIds = await Product.distinct("_id", { sellerId });
+
+        if (!sellerProductIds.length) {
+            return res.status(200).json({
+                success: true,
+                data: {
+                    totalOrders: 0,
+                    totalRevenue: 0,
+                    statusBreakdown: {},
+                    topProducts: [],
+                    lowStockProducts: []
                 }
             });
+        }
+
+        const orderAnalytics = await Order.aggregate([
+            { $unwind: "$items" },
+            { $match: { "items.productId": { $in: sellerProductIds } } },
+            {
+                $group: {
+                    _id: "$_id",
+                    items: { $push: "$items" }
+                }
+            },
+            {
+                $facet: {
+                    totalOrders: [{ $count: "count" }],
+                    totalRevenue: [
+                        { $unwind: "$items" },
+                        { $match: { "items.sellerStatus": "Delivered" } },
+                        {
+                            $group: {
+                                _id: null,
+                                totalRevenue: {
+                                    $sum: { $multiply: ["$items.quantity", "$items.price"] }
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        ]);
+
+        const totalOrders = orderAnalytics[0].totalOrders[0]?.count || 0;
+        const totalRevenue = orderAnalytics[0].totalRevenue[0]?.totalRevenue || 0;
+
+        const statusBreakdown = await Order.aggregate([
+            { $unwind: "$items" },
+            { $match: { "items.productId": { $in: sellerProductIds } } },
+            {
+                $group: {
+                    _id: "$items.sellerStatus",
+                    count: { $sum: 1 }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    status: "$_id",
+                    count: 1
+                }
+            }
+        ]);
+
+        const statusBreakdownObj = statusBreakdown.reduce((acc, { status, count }) => {
+            acc[status] = count;
             return acc;
         }, {});
 
-        // Top-selling products
         const topProducts = await Order.aggregate([
             { $unwind: "$items" },
-            { $match: { "items.productId": { $in: (await Product.find({ sellerId })).map(p => p._id) }, "items.sellerStatus": "Delivered" } },
-            { $group: { _id: "$items.productId", totalSold: { $sum: "$items.quantity" }, revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } } } },
+            {
+                $match: {
+                    "items.productId": { $in: sellerProductIds },
+                    "items.sellerStatus": "Delivered"
+                }
+            },
+            {
+                $group: {
+                    _id: "$items.productId",
+                    totalSold: { $sum: "$items.quantity" },
+                    revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } }
+                }
+            },
             { $sort: { totalSold: -1 } },
             { $limit: 5 },
-            { $lookup: { from: "products", localField: "_id", foreignField: "_id", as: "product" } },
+            {
+                $lookup: {
+                    from: "products",
+                    localField: "_id",
+                    foreignField: "_id",
+                    as: "product"
+                }
+            },
             { $unwind: "$product" },
-            { $project: { title: "$product.title", totalSold: 1, revenue: 1 } }
+            {
+                $project: {
+                    _id: 0,
+                    title: "$product.title",
+                    totalSold: 1,
+                    revenue: 1
+                }
+            }
         ]);
 
-        // Stock levels
         const lowStockProducts = await Product.find({
             sellerId,
-            stock: { $lt: 10 }, // Threshold for low stock
+            stock: { $lt: 10 },
             status: "active"
-        }).select("title stock");
+        })
+            .select("title stock")
+            .sort({ stock: 1 });
 
         res.status(200).json({
             success: true,
             data: {
                 totalOrders,
                 totalRevenue,
-                statusBreakdown,
+                statusBreakdown: statusBreakdownObj,
                 topProducts,
                 lowStockProducts
             }
         });
     } catch (err) {
+        console.error(`Error in getSellerAnalytics for sellerId ${sellerId}:`, err);
         res.status(500).json({ success: false, message: err.message });
     }
 };
