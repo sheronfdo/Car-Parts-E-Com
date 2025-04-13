@@ -140,7 +140,7 @@ exports.updateOrderStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!["Processing", "Shipped", "Delivered"].includes(status)) {
+    if (!["Accepted","Processing", "Shipped"].includes(status)) {
         return res.status(400).json({ success: false, message: "Invalid status" });
     }
 
