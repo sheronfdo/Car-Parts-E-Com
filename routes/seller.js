@@ -7,6 +7,7 @@ const {
 } = require("../controllers/sellerController");
 const auth = require("../middleware/auth");
 const checkRole = require("../middleware/checkRole");
+const {getAllCategories} = require("../controllers/categoryController");
 
 const router = express.Router();
 
@@ -23,6 +24,7 @@ router.get("/order/:id", getSellerOrderById);
 router.put("/order/:id/status", updateOrderStatus);
 router.put("/order/:id/handover", handoverToCourier);
 
-// ... (existing imports and routes)
+router.get("/categories", getAllCategories);
+
 router.get("/analytics", getSellerAnalytics);
 module.exports = router;
