@@ -604,7 +604,8 @@ exports.getAllOrders = async (req, res) => {
                             price: "$items.productId.price",
                             brand: "$items.productId.brand",
                             condition: "$items.productId.condition",
-                            images: "$items.productId.images"
+                            images: "$items.productId.images",
+                            seller: "$items.productId.sellerId"
                         },
                         quantity: "$items.quantity",
                         price: "$items.price",
