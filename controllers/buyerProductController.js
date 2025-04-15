@@ -1,5 +1,7 @@
+const mongoose = require("mongoose");
 const Product = require("../models/Product");
 const User = require("../models/User");
+const Category = require("../models/Category"); // Adjust path as needed
 
 // Get all active products (with pagination)
 exports.getAllProducts = async (req, res) => {
@@ -108,8 +110,58 @@ exports.getProductById = async (req, res) => {
 };
 
 
+// exports.getProductFilterOptions = async (req, res) => {
+//     try {
+//         const conditions = await Product.distinct("condition") || [];
+//         const brands = await Product.distinct("brand") || [];
+//         const oems = await Product.distinct("oem") || [];
+//         const materials = await Product.distinct("material") || [];
+//         const availabilities = await Product.distinct("availability") || [];
+//         const aftermarketOptions = await Product.distinct("aftermarket") || [];
+//         const makes = await Product.distinct("makeModel.make") || [];
+//         const models = await Product.distinct("makeModel.model") || [];
+//         const years = (await Product.distinct("years") || []).map(year => String(year));
+//         const categories = (await Product.distinct("category") || []).map(id => String(id));
+//         // Uncomment if you need sellerLocation
+//         // const sellerLocations = await User.distinct("district", { role: "seller" }) || [];
+
+//         const priceStats = await Product.aggregate([
+//             { $match: { status: "active" } },
+//             { $group: { _id: null, minPrice: { $min: "$price" }, maxPrice: { $max: "$price" } } }
+//         ]);
+
+//         const filterOptions = {
+//             condition: ["All", ...conditions.sort()],
+//             brand: ["All", ...brands.filter(Boolean).sort()],
+//             oem: ["All", ...oems.filter(Boolean).sort()],
+//             material: ["All", ...materials.filter(Boolean).sort()],
+//             availability: ["All", ...availabilities.sort()],
+//             aftermarket: ["All", ...aftermarketOptions.map(String)],
+//             make: ["All", ...makes.filter(Boolean).sort()],
+//             model: ["All", ...models.filter(Boolean).sort()],
+//             years: ["All", ...years.sort((a, b) => a - b)],
+//             // Uncomment and adjust if needed
+//             // sellerLocation: ["All", ...sellerLocations.filter(Boolean).sort()],
+//             category: ["All", ...categories.sort()],
+//             priceRange: {
+//                 min: priceStats[0]?.minPrice || 0,
+//                 max: priceStats[0]?.maxPrice || 1000
+//             }
+//         };
+
+//         res.status(200).json({
+//             success: true,
+//             data: filterOptions
+//         });
+//     } catch (err) {
+//         res.status(500).json({ success: false, message: err.message });
+//     }
+// };
+
+
 exports.getProductFilterOptions = async (req, res) => {
     try {
+        // Fetch filter options from Product model
         const conditions = await Product.distinct("condition") || [];
         const brands = await Product.distinct("brand") || [];
         const oems = await Product.distinct("oem") || [];
@@ -119,15 +171,94 @@ exports.getProductFilterOptions = async (req, res) => {
         const makes = await Product.distinct("makeModel.make") || [];
         const models = await Product.distinct("makeModel.model") || [];
         const years = (await Product.distinct("years") || []).map(year => String(year));
-        const categories = (await Product.distinct("category") || []).map(id => String(id));
-        // Uncomment if you need sellerLocation
-        // const sellerLocations = await User.distinct("district", { role: "seller" }) || [];
 
+        // Fetch category hierarchy from Category model
+        const categories = await Category.aggregate([
+            // Match parent categories (where parentCategory is null)
+            { $match: { parentCategory: null, status: "active" } },
+            // Lookup subcategories (categoryOption)
+            {
+                $lookup: {
+                    from: "categories",
+                    localField: "_id",
+                    foreignField: "parentCategory",
+                    as: "categoryOption"
+                }
+            },
+            // Match only active subcategories
+            {
+                $addFields: {
+                    categoryOption: {
+                        $filter: {
+                            input: "$categoryOption",
+                            as: "subcategory",
+                            cond: { $eq: ["$$subcategory.status", "active"] }
+                        }
+                    }
+                }
+            },
+            // Lookup parentCategory details for subcategories
+            {
+                $unwind: {
+                    path: "$categoryOption",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $lookup: {
+                    from: "categories",
+                    localField: "categoryOption.parentCategory",
+                    foreignField: "_id",
+                    as: "categoryOption.parentCategory"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$categoryOption.parentCategory",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            // Group back to reconstruct the hierarchy
+            {
+                $group: {
+                    _id: "$_id",
+                    name: { $first: "$name" },
+                    parentCategory: { $first: "$parentCategory" },
+                    status: { $first: "$status" },
+                    createdAt: { $first: "$createdAt" },
+                    updatedAt: { $first: "$updatedAt" },
+                    categoryOption: { $push: "$categoryOption" }
+                }
+            },
+            // Clean up categoryOption when empty
+            {
+                $addFields: {
+                    categoryOption: {
+                        $cond: {
+                            if: { $eq: [{ $size: "$categoryOption" }, 1] },
+                            then: {
+                                $cond: {
+                                    if: { $eq: [{ $arrayElemAt: ["$categoryOption._id", 0] }, null] },
+                                    then: [],
+                                    else: "$categoryOption"
+                                }
+                            },
+                            else: "$categoryOption"
+                        }
+                    }
+                }
+            },
+            // Sort parent categories by name
+            { $sort: { name: 1 } }
+        ]);
+
+        // Fetch price range
         const priceStats = await Product.aggregate([
             { $match: { status: "active" } },
             { $group: { _id: null, minPrice: { $min: "$price" }, maxPrice: { $max: "$price" } } }
         ]);
 
+        // Construct the filter options response
         const filterOptions = {
             condition: ["All", ...conditions.sort()],
             brand: ["All", ...brands.filter(Boolean).sort()],
@@ -138,9 +269,7 @@ exports.getProductFilterOptions = async (req, res) => {
             make: ["All", ...makes.filter(Boolean).sort()],
             model: ["All", ...models.filter(Boolean).sort()],
             years: ["All", ...years.sort((a, b) => a - b)],
-            // Uncomment and adjust if needed
-            // sellerLocation: ["All", ...sellerLocations.filter(Boolean).sort()],
-            category: ["All", ...categories.sort()],
+            category: categories, // Use the hierarchical structure
             priceRange: {
                 min: priceStats[0]?.minPrice || 0,
                 max: priceStats[0]?.maxPrice || 1000
@@ -152,6 +281,7 @@ exports.getProductFilterOptions = async (req, res) => {
             data: filterOptions
         });
     } catch (err) {
+        console.error(`Error in getProductFilterOptions:`, err);
         res.status(500).json({ success: false, message: err.message });
     }
 };
