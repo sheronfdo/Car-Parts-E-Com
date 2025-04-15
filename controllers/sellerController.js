@@ -126,7 +126,7 @@ exports.getSellerOrders = async (req, res) => {
                     shippingAddress: order.shippingAddress,
                     _id: order._id, // Order ID
                     buyerId: order.buyerId, // Populated buyer details
-                    items: [item], // Wrap the single item in an array to match the expected format
+                    item: item, // Single item details
                     createdAt: order.createdAt,
                     updatedAt: order.updatedAt,
                     __v: order.__v
@@ -223,7 +223,7 @@ exports.getSellerOrderById = async (req, res) => {
             shippingAddress: order.shippingAddress,
             _id: order._id, // Order ID
             buyerId: order.buyerId, // Populated buyer details
-            items: [item], // Wrap the single item in an array to match the expected format
+            item: item, // Wrap the single item in an array to match the expected format
             createdAt: order.createdAt,
             updatedAt: order.updatedAt,
             __v: order.__v
