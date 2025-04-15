@@ -302,7 +302,6 @@ exports.deleteBuyer = async (req, res) => {
 //     }
 // };
 
-
 exports.getAdminAnalytics = async (req, res) => {
     try {
         // Step 1: Main aggregation pipeline for order and item-level metrics
@@ -463,6 +462,116 @@ exports.getAdminAnalytics = async (req, res) => {
                                 failed: 1
                             }
                         }
+                    ],
+                    // Earnings over time: Daily (last 7 days)
+                    earningsDaily: [
+                        { $match: { "items.sellerStatus": "Delivered" } },
+                        {
+                            $match: {
+                                createdAt: {
+                                    $gte: new Date(new Date().setDate(new Date().getDate() - 7))
+                                }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: {
+                                    $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+                                },
+                                revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } }
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 0,
+                                date: "$_id",
+                                revenue: 1
+                            }
+                        },
+                        { $sort: { date: 1 } }
+                    ],
+                    // Earnings over time: Weekly (last 4 weeks)
+                    earningsWeekly: [
+                        { $match: { "items.sellerStatus": "Delivered" } },
+                        {
+                            $match: {
+                                createdAt: {
+                                    $gte: new Date(new Date().setDate(new Date().getDate() - 28))
+                                }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: {
+                                    $concat: [
+                                        { $toString: { $year: "$createdAt" } },
+                                        "-",
+                                        { $toString: { $week: "$createdAt" } }
+                                    ]
+                                },
+                                revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } }
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 0,
+                                week: "$_id",
+                                revenue: 1
+                            }
+                        },
+                        { $sort: { week: 1 } }
+                    ],
+                    // Earnings over time: Monthly (last 12 months)
+                    earningsMonthly: [
+                        { $match: { "items.sellerStatus": "Delivered" } },
+                        {
+                            $match: {
+                                createdAt: {
+                                    $gte: new Date(new Date().setMonth(new Date().getMonth() - 12))
+                                }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: {
+                                    $dateToString: { format: "%Y-%m", date: "$createdAt" }
+                                },
+                                revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } }
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 0,
+                                month: "$_id",
+                                revenue: 1
+                            }
+                        },
+                        { $sort: { month: 1 } }
+                    ],
+                    // Earnings over time: Yearly (last 5 years)
+                    earningsYearly: [
+                        { $match: { "items.sellerStatus": "Delivered" } },
+                        {
+                            $match: {
+                                createdAt: {
+                                    $gte: new Date(new Date().setFullYear(new Date().getFullYear() - 5))
+                                }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: { $year: "$createdAt" },
+                                revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } }
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 0,
+                                year: "$_id",
+                                revenue: 1
+                            }
+                        },
+                        { $sort: { year: 1 } }
                     ]
                 }
             }
@@ -495,7 +604,13 @@ exports.getAdminAnalytics = async (req, res) => {
                 ),
                 topProducts: orderAnalytics[0].topProducts,
                 topSellers: orderAnalytics[0].topSellers,
-                courierPerformance: orderAnalytics[0].courierPerformance
+                courierPerformance: orderAnalytics[0].courierPerformance,
+                earnings: {
+                    daily: orderAnalytics[0].earningsDaily,
+                    weekly: orderAnalytics[0].earningsWeekly,
+                    monthly: orderAnalytics[0].earningsMonthly,
+                    yearly: orderAnalytics[0].earningsYearly
+                }
             }
         });
     } catch (err) {
