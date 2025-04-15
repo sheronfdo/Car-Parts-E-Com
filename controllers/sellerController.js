@@ -527,11 +527,11 @@ exports.handoverToCourier = async (req, res) => {
 // };
 
 
-
 exports.getSellerAnalytics = async (req, res) => {
     const sellerId = req.user.id;
 
     try {
+        // Validate user role if User model is available
         if (User) {
             const user = await User.findById(sellerId);
             if (!user) {
@@ -544,8 +544,10 @@ exports.getSellerAnalytics = async (req, res) => {
             console.warn("User model not available, skipping role validation for sellerId:", sellerId);
         }
 
+        // Get all product IDs associated with the seller
         const sellerProductIds = await Product.distinct("_id", { sellerId });
 
+        // If no products are found, return default analytics data
         if (!sellerProductIds.length) {
             return res.status(200).json({
                 success: true,
@@ -554,18 +556,26 @@ exports.getSellerAnalytics = async (req, res) => {
                     totalRevenue: 0,
                     statusBreakdown: {},
                     topProducts: [],
-                    lowStockProducts: []
+                    lowStockProducts: [],
+                    earnings: {
+                        daily: [],
+                        weekly: [],
+                        monthly: [],
+                        yearly: []
+                    }
                 }
             });
         }
 
+        // Aggregate total orders and total revenue for delivered or shipped items
         const orderAnalytics = await Order.aggregate([
             { $unwind: "$items" },
             { $match: { "items.productId": { $in: sellerProductIds } } },
             {
                 $group: {
                     _id: "$_id",
-                    items: { $push: "$items" }
+                    items: { $push: "$items" },
+                    orderCreatedAt: { $first: "$createdAt" }
                 }
             },
             {
@@ -573,7 +583,7 @@ exports.getSellerAnalytics = async (req, res) => {
                     totalOrders: [{ $count: "count" }],
                     totalRevenue: [
                         { $unwind: "$items" },
-                        { $match: { "items.sellerStatus": "Delivered" } },
+                        { $match: { "items.sellerStatus": { $in: ["Delivered", "Shipped"] } } }, // Include "Shipped"
                         {
                             $group: {
                                 _id: null,
@@ -590,6 +600,7 @@ exports.getSellerAnalytics = async (req, res) => {
         const totalOrders = orderAnalytics[0].totalOrders[0]?.count || 0;
         const totalRevenue = orderAnalytics[0].totalRevenue[0]?.totalRevenue || 0;
 
+        // Aggregate status breakdown
         const statusBreakdown = await Order.aggregate([
             { $unwind: "$items" },
             { $match: { "items.productId": { $in: sellerProductIds } } },
@@ -613,12 +624,13 @@ exports.getSellerAnalytics = async (req, res) => {
             return acc;
         }, {});
 
+        // Aggregate top products
         const topProducts = await Order.aggregate([
             { $unwind: "$items" },
             {
                 $match: {
                     "items.productId": { $in: sellerProductIds },
-                    "items.sellerStatus": "Delivered"
+                    "items.sellerStatus": { $in: ["Delivered", "Shipped"] } // Include "Shipped"
                 }
             },
             {
@@ -649,6 +661,7 @@ exports.getSellerAnalytics = async (req, res) => {
             }
         ]);
 
+        // Aggregate low stock products
         const lowStockProducts = await Product.find({
             sellerId,
             stock: { $lt: 10 },
@@ -657,6 +670,118 @@ exports.getSellerAnalytics = async (req, res) => {
             .select("title stock")
             .sort({ stock: 1 });
 
+        // Daily Earnings (last 7 days)
+        const dailyEarnings = await Order.aggregate([
+            { $unwind: "$items" },
+            {
+                $match: {
+                    "items.productId": { $in: sellerProductIds },
+                    "items.sellerStatus": { $in: ["Delivered", "Shipped"] }, // Include "Shipped"
+                    createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
+                    },
+                    revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } }
+                }
+            },
+            { $sort: { _id: 1 } },
+            {
+                $project: {
+                    _id: 0,
+                    date: "$_id",
+                    revenue: 1
+                }
+            }
+        ]);
+
+        // Weekly Earnings (last 4 weeks)
+        const weeklyEarnings = await Order.aggregate([
+            { $unwind: "$items" },
+            {
+                $match: {
+                    "items.productId": { $in: sellerProductIds },
+                    "items.sellerStatus": { $in: ["Delivered", "Shipped"] }, // Include "Shipped"
+                    createdAt: { $gte: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000) }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        $dateToString: { format: "%Y-%U", date: "$createdAt" }
+                    },
+                    revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } }
+                }
+            },
+            { $sort: { _id: 1 } },
+            {
+                $project: {
+                    _id: 0,
+                    week: "$_id",
+                    revenue: 1
+                }
+            }
+        ]);
+
+        // Monthly Earnings (last 12 months)
+        const monthlyEarnings = await Order.aggregate([
+            { $unwind: "$items" },
+            {
+                $match: {
+                    "items.productId": { $in: sellerProductIds },
+                    "items.sellerStatus": { $in: ["Delivered", "Shipped"] }, // Include "Shipped"
+                    createdAt: { $gte: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        $dateToString: { format: "%Y-%m", date: "$createdAt" }
+                    },
+                    revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } }
+                }
+            },
+            { $sort: { _id: 1 } },
+            {
+                $project: {
+                    _id: 0,
+                    month: "$_id",
+                    revenue: 1
+                }
+            }
+        ]);
+
+        // Yearly Earnings (last 5 years)
+        const yearlyEarnings = await Order.aggregate([
+            { $unwind: "$items" },
+            {
+                $match: {
+                    "items.productId": { $in: sellerProductIds },
+                    "items.sellerStatus": { $in: ["Delivered", "Shipped"] }, // Include "Shipped"
+                    createdAt: { $gte: new Date(Date.now() - 5 * 365 * 24 * 60 * 60 * 1000) }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        $dateToString: { format: "%Y", date: "$createdAt" }
+                    },
+                    revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } }
+                }
+            },
+            { $sort: { _id: 1 } },
+            {
+                $project: {
+                    _id: 0,
+                    year: "$_id",
+                    revenue: 1
+                }
+            }
+        ]);
+
         res.status(200).json({
             success: true,
             data: {
@@ -664,7 +789,13 @@ exports.getSellerAnalytics = async (req, res) => {
                 totalRevenue,
                 statusBreakdown: statusBreakdownObj,
                 topProducts,
-                lowStockProducts
+                lowStockProducts,
+                earnings: {
+                    daily: dailyEarnings,
+                    weekly: weeklyEarnings,
+                    monthly: monthlyEarnings,
+                    yearly: yearlyEarnings
+                }
             }
         });
     } catch (err) {

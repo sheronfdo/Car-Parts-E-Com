@@ -387,6 +387,7 @@ exports.getCourierOrderById = async (req, res) => {
 //         res.status(500).json({ success: false, message: err.message });
 //     }
 // };
+
 exports.updateCourierStatus = async (req, res) => {
     const courierId = req.user.id;
     const { id } = req.params; // orderId
@@ -465,7 +466,7 @@ exports.updateCourierStatus = async (req, res) => {
             "In Transit": ["Out for Delivery"],
             "Out for Delivery": ["Delivered", "Failed Delivery"],
             "Delivered": [],
-            "Failed Delivery": ["Out for Delivery","Delivered"]
+            "Failed Delivery": ["Out for Delivery", "Delivered"]
         };
 
         const currentStatus = item.courierStatus || "Pending";
@@ -506,7 +507,17 @@ exports.updateCourierStatus = async (req, res) => {
             updatedAt: new Date()
         });
 
-        // Step 11: Save the updated order
+        // Step 11: If courierStatus is "Delivered," update sellerStatus to "Delivered"
+        if (status === "Delivered") {
+            item.sellerStatus = "Delivered";
+            item.statusHistory.push({
+                status: "Seller status updated to Delivered",
+                updatedBy: { role: "courier", userId: courierId },
+                updatedAt: new Date()
+            });
+        }
+
+        // Step 12: Save the updated order
         await order.save();
         res.status(200).json({ success: true, message: `Courier status updated to ${status}` });
     } catch (err) {

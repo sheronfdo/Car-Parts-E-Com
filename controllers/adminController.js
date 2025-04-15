@@ -381,6 +381,12 @@ exports.getAdminAnalytics = async (req, res) => {
                             $project: {
                                 _id: 0,
                                 title: "$product.title",
+                                itemPrice: "$product.price",
+                                categoryId: "$product.categoryId",
+                                categoryName: "$product.categoryName",
+                                presentStock: "$product.stock",
+                                make: "$product.make",
+                                model: "$product.model",
                                 totalSold: 1,
                                 revenue: 1
                             }
@@ -401,10 +407,10 @@ exports.getAdminAnalytics = async (req, res) => {
                         {
                             $group: {
                                 _id: "$product.sellerId",
-                                revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } }
+                                totalEarnings: { $sum: { $multiply: ["$items.quantity", "$items.price"] } }
                             }
                         },
-                        { $sort: { revenue: -1 } },
+                        { $sort: { totalEarnings: -1 } },
                         { $limit: 5 },
                         {
                             $lookup: {
@@ -420,7 +426,9 @@ exports.getAdminAnalytics = async (req, res) => {
                                 _id: 0,
                                 name: "$seller.name",
                                 storeName: "$seller.storeName",
-                                revenue: 1
+                                email: "$seller.email",
+                                phone: "$seller.phone",
+                                totalEarnings: 1
                             }
                         }
                     ],
