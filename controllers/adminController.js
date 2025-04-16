@@ -377,15 +377,24 @@ exports.getAdminAnalytics = async (req, res) => {
                         },
                         { $unwind: "$product" },
                         {
+                            $lookup: {
+                                from: "categories",
+                                localField: "product.category",
+                                foreignField: "_id",
+                                as: "category"
+                            }
+                        },
+                        { $unwind: "$category" },
+                        {
                             $project: {
                                 _id: 0,
                                 title: "$product.title",
                                 itemPrice: "$product.price",
-                                categoryId: "$product.categoryId",
-                                categoryName: "$product.categoryName",
+                                categoryId: "$category._id",
+                                categoryName: "$category.name",
                                 presentStock: "$product.stock",
-                                make: "$product.make",
-                                model: "$product.model",
+                                make: { $arrayElemAt: ["$product.makeModel.make", 0] },
+                                model: { $arrayElemAt: ["$product.makeModel.model", 0] },
                                 totalSold: 1,
                                 revenue: 1
                             }
@@ -588,7 +597,44 @@ exports.getAdminAnalytics = async (req, res) => {
             { $group: { _id: "$status", count: { $sum: 1 } } }
         ]);
 
-        // Step 4: Format the response
+        // Step 4: Product distribution by category (total products in each category)
+        const productCategoryDistribution = await Product.aggregate([
+            // Match only active products
+            { $match: { status: "active" } },
+            // Join with the categories collection
+            {
+                $lookup: {
+                    from: "categories",
+                    localField: "category",
+                    foreignField: "_id",
+                    as: "category"
+                }
+            },
+            { $unwind: "$category" },
+            // Match only active categories
+            { $match: { "category.status": "active" } },
+            // Group by category and count products
+            {
+                $group: {
+                    _id: {
+                        categoryId: "$category._id",
+                        categoryName: "$category.name"
+                    },
+                    productCount: { $sum: 1 }
+                }
+            },
+            // Format the output
+            {
+                $project: {
+                    _id: 0,
+                    categoryId: "$_id.categoryId",
+                    categoryName: "$_id.categoryName",
+                    productCount: 1
+                }
+            }
+        ]);
+
+        // Step 5: Format the response
         res.status(200).json({
             success: true,
             data: {
@@ -610,7 +656,8 @@ exports.getAdminAnalytics = async (req, res) => {
                     weekly: orderAnalytics[0].earningsWeekly,
                     monthly: orderAnalytics[0].earningsMonthly,
                     yearly: orderAnalytics[0].earningsYearly
-                }
+                },
+                productCategoryDistribution: productCategoryDistribution
             }
         });
     } catch (err) {

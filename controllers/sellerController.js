@@ -294,7 +294,7 @@ exports.updateOrderStatus = async (req, res) => {
     const { status, productId } = req.body;
 
     // Validate status
-    if (!["Accepted", "Processing"].includes(status)) {
+    if (!["Accepted", "Processing", "Shipped"].includes(status)) {
         return res.status(400).json({ success: false, message: "Invalid status" });
     }
 
