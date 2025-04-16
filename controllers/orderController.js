@@ -118,8 +118,8 @@ exports.createOrder = async (req, res) => {
         const payhereData = {
             sandbox: true,
             merchant_id: PAYHERE_MERCHANT_ID,
-            return_url: "http://localhost:3000/success",
-            cancel_url: "http://localhost:3000/cancel",
+            return_url: "http://localhost:5173/success",
+            cancel_url: "http://localhost:5173/cancel",
             notify_url: PAYHERE_NOTIFY_URL,
             order_id: order._id.toString(),
             items: orderItems.map((item) => `Product ${item.productId}`).join(", "),
@@ -137,6 +137,8 @@ exports.createOrder = async (req, res) => {
             delivery_country: shippingAddress.country,
             hash: generatePayHereHash(PAYHERE_MERCHANT_ID, order._id.toString(), total, "LKR", PAYHERE_MERCHANT_SECRET),
         };
+
+        console.log("PayHere Data:", payhereData); // Debugging line
 
         res.status(200).json({
             success: true,
