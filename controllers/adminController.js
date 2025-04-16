@@ -6,8 +6,26 @@ const bcrypt = require("bcryptjs");
 
 exports.getAdmins = async (req, res) => {
     try {
-        const admins = await User.find({ role: "admin", status: "active" });
-        res.json({ success: true, data: admins });
+        const page = parseInt(req.query.page) || 1; // Default to page 1
+        const limit = parseInt(req.query.limit) || 10; // Default to 10 items per page
+        const skip = (page - 1) * limit;
+
+        const admins = await User.find({ role: "admin", status: "active" })
+            .skip(skip)
+            .limit(limit);
+
+        const totalAdmins = await User.countDocuments({ role: "admin", status: "active" });
+
+        res.json({
+            success: true,
+            data: admins,
+            pagination: {
+                total: totalAdmins,
+                pages: Math.ceil(totalAdmins / limit),
+                currentPage: page,
+                limit: limit
+            }
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -69,8 +87,26 @@ exports.deleteAdmin = async (req, res) => {
 // --- Courier Management ---
 exports.getCouriers = async (req, res) => {
     try {
-        const couriers = await User.find({ role: "courier", status: "active" });
-        res.json({ success: true, data: couriers });
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        const couriers = await User.find({ role: "courier", status: "active" })
+            .skip(skip)
+            .limit(limit);
+
+        const totalCouriers = await User.countDocuments({ role: "courier", status: "active" });
+
+        res.json({
+            success: true,
+            data: couriers,
+            pagination: {
+                total: totalCouriers,
+                pages: Math.ceil(totalCouriers / limit),
+                currentPage: page,
+                limit: limit
+            }
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -150,17 +186,54 @@ exports.deleteCourier = async (req, res) => {
 
 exports.getAllSellers = async (req, res) => {
     try {
-        const sellers = await User.find({ role: "seller", status: "active" });
-        res.json({ success: true, data: sellers });
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        const sellers = await User.find({ role: "seller", status: "active" })
+            .skip(skip)
+            .limit(limit);
+
+        const totalSellers = await User.countDocuments({ role: "seller", status: "active" });
+
+        res.json({
+            success: true,
+            data: sellers,
+            pagination: {
+                total: totalSellers,
+                pages: Math.ceil(totalSellers / limit),
+                currentPage: page,
+                limit: limit
+            }
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
 };
 
+
 exports.getPendingSellers = async (req, res) => {
     try {
-        const pendingSellers = await User.find({ role: "seller", status: "pending" });
-        res.json({ success: true, data: pendingSellers });
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        const pendingSellers = await User.find({ role: "seller", status: "pending" })
+            .skip(skip)
+            .limit(limit);
+
+        const totalPendingSellers = await User.countDocuments({ role: "seller", status: "pending" });
+
+        res.json({
+            success: true,
+            data: pendingSellers,
+            pagination: {
+                total: totalPendingSellers,
+                pages: Math.ceil(totalPendingSellers / limit),
+                currentPage: page,
+                limit: limit
+            }
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -203,8 +276,26 @@ exports.deleteSeller = async (req, res) => {
 
 exports.getAllBuyers = async (req, res) => {
     try {
-        const buyers = await User.find({ role: "buyer", status: "active" });
-        res.json({ success: true, data: buyers });
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        const buyers = await User.find({ role: "buyer", status: "active" })
+            .skip(skip)
+            .limit(limit);
+
+        const totalBuyers = await User.countDocuments({ role: "buyer", status: "active" });
+
+        res.json({
+            success: true,
+            data: buyers,
+            pagination: {
+                total: totalBuyers,
+                pages: Math.ceil(totalBuyers / limit),
+                currentPage: page,
+                limit: limit
+            }
+        });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -593,6 +684,10 @@ exports.getAdminAnalytics = async (req, res) => {
 
 exports.getAllOrders = async (req, res) => {
     try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
         const { status, startDate, endDate, district, sellerStatus, courierStatus } = req.query;
 
         // Build order-level query
@@ -610,8 +705,8 @@ exports.getAllOrders = async (req, res) => {
         if (sellerStatus) itemMatch["items.sellerStatus"] = sellerStatus;
         if (courierStatus) itemMatch["items.courierStatus"] = courierStatus;
 
-        // Use aggregation to return a flattened list of items
-        const items = await Order.aggregate([
+        // Use aggregation to return a flattened list of items with pagination
+        const aggregationPipeline = [
             { $match: orderQuery },
             { $unwind: "$items" },
             itemMatch["items.sellerStatus"] || itemMatch["items.courierStatus"]
@@ -688,12 +783,24 @@ exports.getAllOrders = async (req, res) => {
                     orderUpdatedAt: "$updatedAt"
                 }
             },
-            { $sort: { orderCreatedAt: -1 } }
-        ]);
+            { $sort: { orderCreatedAt: -1 } },
+            { $skip: skip },
+            { $limit: limit }
+        ];
+
+        const items = await Order.aggregate(aggregationPipeline);
+
+        const totalOrders = await Order.countDocuments(orderQuery);
 
         res.status(200).json({
             success: true,
-            data: items
+            data: items,
+            pagination: {
+                total: totalOrders,
+                pages: Math.ceil(totalOrders / limit),
+                currentPage: page,
+                limit: limit
+            }
         });
     } catch (err) {
         console.error(`Error in getAllOrders:`, err);
@@ -703,6 +810,10 @@ exports.getAllOrders = async (req, res) => {
 
 exports.getAllProducts = async (req, res) => {
     try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
         const { status, category, sellerId } = req.query;
 
         // Build query object
@@ -713,11 +824,21 @@ exports.getAllProducts = async (req, res) => {
 
         const products = await Product.find(query)
             .populate("category", "name")
-            .populate("sellerId", "name email storeName");
+            .populate("sellerId", "name email storeName")
+            .skip(skip)
+            .limit(limit);
+
+        const totalProducts = await Product.countDocuments(query);
 
         res.status(200).json({
             success: true,
-            data: products
+            data: products,
+            pagination: {
+                total: totalProducts,
+                pages: Math.ceil(totalProducts / limit),
+                currentPage: page,
+                limit: limit
+            }
         });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
