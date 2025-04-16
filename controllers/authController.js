@@ -63,6 +63,10 @@ exports.login = async (req, res) => {
             return res.status(403).json({success: false, message: "Account has suspended"});
         }
 
+        if (user.status === "inactive") {
+            return res.status(403).json({success: false, message: "Account is inactive"});
+        }
+
         if (user.role === "seller" && user.status !== "active") {
             return res.status(403).json({success: false, message: "Account pending approval"});
         }
