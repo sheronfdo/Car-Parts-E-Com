@@ -32,16 +32,6 @@ exports.createCategory = async (req, res) => {
     }
 };
 
-// Get all categories (exclude deleted by default)
-// exports.getAllCategories = async (req, res) => {
-//     try {
-//         const categories = await Category.find({ status: "active" }).populate("parentCategory", "name");
-//         res.json({ success: true, data: categories });
-//     } catch (err) {
-//         res.status(500).json({ success: false, message: err.message });
-//     }
-// };
-
 exports.getAllCategories = async (req, res) => {
     try {
         // Fetch all active categories with populated parentCategory

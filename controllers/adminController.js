@@ -226,82 +226,6 @@ exports.deleteBuyer = async (req, res) => {
     }
 };
 
-// exports.getAdminAnalytics = async (req, res) => {
-//     try {
-//         // Total orders and revenue
-//         const totalOrders = await Order.countDocuments();
-//         const totalRevenue = await Order.aggregate([
-//             { $match: { status: "Delivered" } },
-//             { $group: { _id: null, total: { $sum: "$total" } } }
-//         ]);
-
-//         // Users by role
-//         const usersByRole = await User.aggregate([
-//             { $match: { status: "active" } },
-//             { $group: { _id: "$role", count: { $sum: 1 } } }
-//         ]);
-
-//         // Order status breakdown
-//         const orderStatusBreakdown = await Order.aggregate([
-//             { $group: { _id: "$status", count: { $sum: 1 } } }
-//         ]);
-
-//         // Top-selling products
-//         const topProducts = await Order.aggregate([
-//             { $unwind: "$items" },
-//             { $match: { "items.sellerStatus": "Delivered" } },
-//             { $group: { _id: "$items.productId", totalSold: { $sum: "$items.quantity" }, revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } } } },
-//             { $sort: { totalSold: -1 } },
-//             { $limit: 5 },
-//             { $lookup: { from: "products", localField: "_id", foreignField: "_id", as: "product" } },
-//             { $unwind: "$product" },
-//             { $project: { title: "$product.title", totalSold: 1, revenue: 1 } }
-//         ]);
-
-//         // Top sellers
-//         const topSellers = await Order.aggregate([
-//             { $unwind: "$items" },
-//             { $match: { "items.sellerStatus": "Delivered" } },
-//             { $lookup: { from: "products", localField: "items.productId", foreignField: "_id", as: "product" } },
-//             { $unwind: "$product" },
-//             { $group: { _id: "$product.sellerId", revenue: { $sum: { $multiply: ["$items.quantity", "$items.price"] } } } },
-//             { $sort: { revenue: -1 } },
-//             { $limit: 5 },
-//             { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "seller" } },
-//             { $unwind: "$seller" },
-//             { $project: { name: "$seller.name", storeName: "$seller.storeName", revenue: 1 } }
-//         ]);
-
-//         // Courier performance
-//         const courierPerformance = await Order.aggregate([
-//             { $match: { "courierDetails.courierId": { $ne: null } } },
-//             { $group: {
-//                     _id: "$courierDetails.courierId",
-//                     delivered: { $sum: { $cond: [{ $eq: ["$courierStatus", "Delivered"] }, 1, 0] } },
-//                     failed: { $sum: { $cond: [{ $eq: ["$courierStatus", "Failed Delivery"] }, 1, 0] } }
-//                 } },
-//             { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "courier" } },
-//             { $unwind: "$courier" },
-//             { $project: { name: "$courier.name", delivered: 1, failed: 1 } }
-//         ]);
-
-//         res.status(200).json({
-//             success: true,
-//             data: {
-//                 totalOrders,
-//                 totalRevenue: totalRevenue[0]?.total || 0,
-//                 usersByRole: Object.fromEntries(usersByRole.map(r => [r._id, r.count])),
-//                 orderStatusBreakdown: Object.fromEntries(orderStatusBreakdown.map(s => [s._id, s.count])),
-//                 topProducts,
-//                 topSellers,
-//                 courierPerformance
-//             }
-//         });
-//     } catch (err) {
-//         res.status(500).json({ success: false, message: err.message });
-//     }
-// };
-
 exports.getAdminAnalytics = async (req, res) => {
     try {
         // Step 1: Main aggregation pipeline for order and item-level metrics
@@ -665,35 +589,6 @@ exports.getAdminAnalytics = async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 };
-
-// exports.getAllOrders = async (req, res) => {
-//     try {
-//         const { status, startDate, endDate, district } = req.query;
-
-//         // Build query object
-//         const query = {};
-//         if (status) query.status = status;
-//         if (district) query["shippingAddress.district"] = district;
-//         if (startDate || endDate) {
-//             query.createdAt = {};
-//             if (startDate) query.createdAt.$gte = new Date(startDate);
-//             if (endDate) query.createdAt.$lte = new Date(endDate);
-//         }
-
-//         const orders = await Order.find(query)
-//             .populate("buyerId", "name email phone")
-//             .populate("items.productId", "title price brand condition images")
-//             .populate("courierDetails.courierId", "name phone region");
-
-//         res.status(200).json({
-//             success: true,
-//             data: orders
-//         });
-//     } catch (err) {
-//         res.status(500).json({ success: false, message: err.message });
-//     }
-// };
-
 
 
 exports.getAllOrders = async (req, res) => {

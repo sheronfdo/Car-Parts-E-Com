@@ -109,56 +109,8 @@ exports.getProductById = async (req, res) => {
     }
 };
 
-
-// exports.getProductFilterOptions = async (req, res) => {
-//     try {
-//         const conditions = await Product.distinct("condition") || [];
-//         const brands = await Product.distinct("brand") || [];
-//         const oems = await Product.distinct("oem") || [];
-//         const materials = await Product.distinct("material") || [];
-//         const availabilities = await Product.distinct("availability") || [];
-//         const aftermarketOptions = await Product.distinct("aftermarket") || [];
-//         const makes = await Product.distinct("makeModel.make") || [];
-//         const models = await Product.distinct("makeModel.model") || [];
-//         const years = (await Product.distinct("years") || []).map(year => String(year));
-//         const categories = (await Product.distinct("category") || []).map(id => String(id));
-//         // Uncomment if you need sellerLocation
-//         // const sellerLocations = await User.distinct("district", { role: "seller" }) || [];
-
-//         const priceStats = await Product.aggregate([
-//             { $match: { status: "active" } },
-//             { $group: { _id: null, minPrice: { $min: "$price" }, maxPrice: { $max: "$price" } } }
-//         ]);
-
-//         const filterOptions = {
-//             condition: ["All", ...conditions.sort()],
-//             brand: ["All", ...brands.filter(Boolean).sort()],
-//             oem: ["All", ...oems.filter(Boolean).sort()],
-//             material: ["All", ...materials.filter(Boolean).sort()],
-//             availability: ["All", ...availabilities.sort()],
-//             aftermarket: ["All", ...aftermarketOptions.map(String)],
-//             make: ["All", ...makes.filter(Boolean).sort()],
-//             model: ["All", ...models.filter(Boolean).sort()],
-//             years: ["All", ...years.sort((a, b) => a - b)],
-//             // Uncomment and adjust if needed
-//             // sellerLocation: ["All", ...sellerLocations.filter(Boolean).sort()],
-//             category: ["All", ...categories.sort()],
-//             priceRange: {
-//                 min: priceStats[0]?.minPrice || 0,
-//                 max: priceStats[0]?.maxPrice || 1000
-//             }
-//         };
-
-//         res.status(200).json({
-//             success: true,
-//             data: filterOptions
-//         });
-//     } catch (err) {
-//         res.status(500).json({ success: false, message: err.message });
-//     }
-// };
-
-
+// Get product filter options
+// This function fetches distinct values for various product attributes to be used as filter options in the frontend.
 exports.getProductFilterOptions = async (req, res) => {
     try {
         // Fetch filter options from Product model
