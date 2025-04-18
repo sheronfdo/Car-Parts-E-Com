@@ -115,7 +115,7 @@ exports.updateOrderStatus = async (req, res) => {
     const { status, productId } = req.body;
 
     // Validate status
-    if (!["Accepted", "Processing", "Shipped"].includes(status)) {
+    if (!["Cancelled", "Accepted", "Processing", "Shipped"].includes(status)) {
         return res.status(400).json({ success: false, message: "Invalid status" });
     }
 
@@ -211,17 +211,13 @@ exports.handoverToCourier = async (req, res) => {
         const allShipped = order.items.every(item => item.sellerStatus === "Shipped");
         if (allShipped) {
             order.status = "Shipped";
-            order.statusHistory.push({
-                status: "Order status updated to Shipped",
-                updatedBy: { role: "system" },
-                updatedAt: new Date()
-            });
         }
 
         // Step 6: Save the updated order
         await order.save();
         res.status(200).json({ success: true, message: "Item handed over to courier service" });
     } catch (err) {
+        console.error(`Error in handoverToCourier for sellerId ${sellerId}:`, err);
         res.status(500).json({ success: false, message: err.message });
     }
 };
