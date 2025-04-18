@@ -270,17 +270,53 @@ exports.getOrders = async (req, res) => {
             "title price condition brand images"
         );
 
-        // Transform the orders into an item-level structure
+        // Transform the orders into an item-level structure with unified status
         const itemLevelData = orders.flatMap(order => {
-            return order.items.map(item => ({
-                _id: order._id, // Order ID
-                shippingAddress: order.shippingAddress,
-                buyerId: order.buyerId,
-                items: [item], // Wrap the single item in an array to match the expected format
-                createdAt: order.createdAt,
-                updatedAt: order.updatedAt,
-                __v: order.__v
-            }));
+            return order.items.map(item => {
+                let unifiedStatus = "Payment Pending"; // Default status
+
+                // Map the statuses to a unified status
+                if (order.status === "Confirmed") {
+                    unifiedStatus = "Payment Confirmed";
+                }
+
+                if (order.status === "Cancelled" || item.sellerStatus === "Cancelled") {
+                    unifiedStatus = "Cancelled";
+                } else if (item.sellerStatus === "Accepted") {
+                    unifiedStatus = "Order Accepted";
+                } else if (item.sellerStatus === "Processing") {
+                    unifiedStatus = "Processing";
+                } else if (item.sellerStatus === "Shipped") {
+                    if (item.courierStatus === "Pending") {
+                        unifiedStatus = "Shipped - Awaiting Courier";
+                    } else if (item.courierStatus === "Picked Up") {
+                        unifiedStatus = "Picked Up by Courier";
+                    } else if (item.courierStatus === "In Transit") {
+                        unifiedStatus = "In Transit";
+                    } else if (item.courierStatus === "Out for Delivery") {
+                        unifiedStatus = "Out for Delivery";
+                    } else if (item.courierStatus === "Delivered" && item.sellerStatus === "Delivered") {
+                        unifiedStatus = "Delivered";
+                    } else if (item.courierStatus === "Failed Delivery") {
+                        unifiedStatus = "Delivery Failed";
+                    }
+                } else if (item.sellerStatus === "Delivered") {
+                    unifiedStatus = "Delivered";
+                }
+
+                return {
+                    _id: order._id,
+                    shippingAddress: order.shippingAddress,
+                    buyerId: order.buyerId,
+                    items: [{
+                        ...item.toObject(),
+                        orderStatus:unifiedStatus // Add the unified status to the item
+                    }],
+                    createdAt: order.createdAt,
+                    updatedAt: order.updatedAt,
+                    __v: order.__v
+                };
+            });
         });
 
         res.status(200).json({ success: true, data: itemLevelData });
