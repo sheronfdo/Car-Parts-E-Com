@@ -19,6 +19,7 @@ const {
     trackOrder,
     saveAddress
 } = require("../controllers/orderController");
+const { submitComplaint } = require("../controllers/complaintController");
 const router = express.Router();
 const auth = require("../middleware/auth");
 const checkRole = require("../middleware/checkRole");
@@ -44,5 +45,8 @@ router.get("/orders", getOrders);
 router.post("/order/cancel/:id", cancelOrder);
 router.get("/order/track/:id", trackOrder);
 router.post("/address", saveAddress);
+
+// Complaint route
+router.post("/order/:orderId/complaint", submitComplaint);
 
 module.exports = router;

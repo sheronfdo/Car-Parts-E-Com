@@ -17,6 +17,7 @@ const {
     getAllOrders,
     getAllProducts
 } = require("../controllers/adminController");
+const { getAllComplaints } = require("../controllers/complaintController");
 const auth = require("../middleware/auth");
 const checkRole = require("../middleware/checkRole");
 const {
@@ -54,7 +55,7 @@ router.delete("/sellers/:id", deleteSeller);
 router.get("/buyers", getAllBuyers);
 router.delete("/buyers/:id", deleteBuyer);
 
-//Category Management
+// Category Management
 router.post("/categories", createCategory);
 router.get("/categories", getAllCategories);
 router.get("/categories/:id", getCategoryById);
@@ -65,5 +66,8 @@ router.delete("/categories/:id", deleteCategory);
 router.get("/orders", getAllOrders);
 router.get("/products", getAllProducts);
 router.get("/analytics", getAdminAnalytics);
+
+// Complaints
+router.get("/complaints", getAllComplaints);
 
 module.exports = router;
