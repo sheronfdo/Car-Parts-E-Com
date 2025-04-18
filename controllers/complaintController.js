@@ -121,39 +121,84 @@ exports.resolveComplaint = async (req, res) => {
 // Admin: Get all complaints
 exports.getAllComplaints = async (req, res) => {
     try {
-        const orders = await Order.find({ "items.complaint": { $exists: true } })
-            .populate("buyerId", "name email")
-            .populate("items.productId", "title seller")
-            .populate("items.complaint.resolvedBy", "name"); // Populate seller who resolved
+        // Validate role
+        if (req.user.role !== "admin") {
+            return res.status(403).json({ message: "Forbidden: Admin access required." });
+        }
 
+        // Parse query parameters
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        if (page < 1 || limit < 1) {
+            return res.status(400).json({ message: "Invalid page or limit parameters." });
+        }
+
+        // Fetch orders with complaints
+        const orders = await Order.find({ "items.complaint": { $exists: true } })
+            .populate("buyerId", "name email phone") // Added phone
+            .populate({
+                path: "items.productId",
+                select: "title price sellerId",
+                populate: {
+                    path: "sellerId",
+                    select: "name email" // Populate seller details
+                }
+            })
+            .populate("items.complaint.resolvedBy", "name") // For resolvedBy name
+            .lean(); // Use lean for performance
+
+        // Map to complaints array
         const complaints = orders.flatMap(order =>
             order.items
                 .filter(item => item.complaint)
                 .map(item => ({
                     orderId: order._id,
                     productId: item.productId._id,
-                    productTitle: item.productId.title,
+                    productTitle: item.productId.title || "N/A",
                     buyer: {
                         id: order.buyerId._id,
-                        name: order.buyerId.name,
-                        email: order.buyerId.email
+                        name: order.buyerId.name || "N/A",
+                        email: order.buyerId.email || "N/A",
+                        phone: order.buyerId.phone || "N/A" // Added phone
                     },
                     seller: {
-                        id: item.productId.seller,
-                        name: item.complaint.resolvedBy ? item.complaint.resolvedBy.name : "N/A"
+                        id: item.productId.sellerId?._id || "N/A",
+                        name: item.productId.sellerId?.name || "N/A",
+                        email: item.productId.sellerId?.email || "N/A" // Added email
+                    },
+                    item: {
+                        quantity: item.quantity || 1,
+                        price: item.productId.price || 0, // Price per unit
+                        totalPrice: (item.productId.price || 0) * (item.quantity || 1), // price * quantity
+                        sellerStatus: item.sellerStatus || "N/A" // e.g., Delivered
                     },
                     complaint: {
-                        description: item.complaint.description,
-                        status: item.complaint.status,
-                        refundRequested: item.complaint.refundRequested,
-                        refundAmount: item.complaint.refundAmount,
+                        description: item.complaint.description || "N/A",
+                        status: item.complaint.status || "N/A",
+                        refundRequested: item.complaint.refundRequested || false,
+                        refundAmount: item.complaint.refundAmount || 0,
                         createdAt: item.complaint.createdAt,
-                        resolvedAt: item.complaint.resolvedAt
+                        resolvedAt: item.complaint.resolvedAt,
+                        resolvedBy: item.complaint.resolvedBy?.name || "N/A" // Who resolved it
                     }
                 }))
         );
 
-        res.status(200).json(complaints);
+        // Paginate
+        const total = complaints.length;
+        const start = (page - 1) * limit;
+        const paginatedComplaints = complaints.slice(start, start + limit);
+
+        // Response
+        res.status(200).json({
+            success: true,
+            data: paginatedComplaints,
+            pagination: {
+                page,
+                limit,
+                total
+            }
+        });
     } catch (error) {
         console.error("Get complaints error:", error);
         res.status(500).json({ message: "Server error. Please try again later." });
