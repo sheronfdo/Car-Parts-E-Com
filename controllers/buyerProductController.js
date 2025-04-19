@@ -28,10 +28,11 @@ exports.getAllProducts = async (req, res) => {
 };
 
 // Search products with all filters (updated)
+
 exports.searchProducts = async (req, res) => {
     const {
         keyword, minPrice, maxPrice, condition, brand, oem, aftermarket,
-        availability, make, model, years, material, sellerLocation
+        availability, make, model, years, material, sellerLocation, categoryId
     } = req.query;
 
     const query = { status: "active" };
@@ -82,10 +83,46 @@ exports.searchProducts = async (req, res) => {
         query.sellerId = { $in: sellers.map(s => s._id) };
     }
 
+    // Category filter by categoryId
+    if (categoryId) {
+        try {
+            // Validate that categoryId is a valid ObjectId
+            if (!mongoose.Types.ObjectId.isValid(categoryId)) {
+                console.log(`Invalid categoryId: "${categoryId}"`);
+                return res.status(400).json({ success: false, message: "Invalid categoryId format" });
+            }
+
+            // Check if the category exists and is active
+            const categoryDoc = await Category.findOne({
+                _id: categoryId,
+                status: "active"
+            }).select("_id name");
+
+            if (categoryDoc) {
+                console.log(`Category found: ${categoryDoc.name} (ID: ${categoryDoc._id})`);
+                query.category = categoryId; // Directly use the categoryId in the query
+            } else {
+                console.log(`Category with ID "${categoryId}" not found or not active. Returning empty result.`);
+                return res.json({ success: true, data: [] });
+            }
+        } catch (err) {
+            console.error(`Error finding category: ${err.message}`);
+            return res.status(500).json({ success: false, message: "Error processing category filter" });
+        }
+    }
+
     try {
+        console.log(`Final query: ${JSON.stringify(query)}`);
         const products = await Product.find(query)
             .populate("category", "name")
             .populate("sellerId", "storeName region");
+
+        if (products.length === 0) {
+            console.log("No products found with the given filters.");
+        } else {
+            console.log(`Found ${products.length} products.`);
+        }
+
         res.json({ success: true, data: products });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
